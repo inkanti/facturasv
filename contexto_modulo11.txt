@@ -1,0 +1,329 @@
+contexto
+
+Estoy desarrollando FacturaSV, un SaaS multiempresa de facturación electrónica para El Salvador.
+Los módulos 1 al 11 están completos y probados. Ya existen los seis tipos de DTE y un
+superadministrador global que crea empresas, asigna usuarios y controla el acceso. El siguiente
+trabajo es la integración real con el Ministerio de Hacienda.
+
+ENTORNO Y RESTRICCIONES
+
+- Workspace:
+  C:\xampp\htdocs\sistemas\factElectronica_saas\facturacion electronica
+- Trabajar únicamente dentro de ese directorio.
+- Base de datos exclusiva: facturasv2. No utilizar ni modificar otras bases.
+- Stack: PHP 8 plano, PDO, MySQL/MariaDB, Bootstrap 5 y jQuery.
+- No usar Composer, frameworks ni Node.js para la aplicación.
+- No usar subagentes.
+- Aplicación compatible con Apache + PHP 8 + MySQL 8 y MariaDB 10.4+.
+- URL local:
+  http://localhost/sistemas/factElectronica_saas/facturacion%20electronica/
+- Acceso demo de empresa:
+  Usuario: admin
+  Contraseña: Demo1234!
+- Acceso demo de superadministrador:
+  Usuario: superadmin
+  Contraseña: SuperDemo1234!
+- PHP CLI:
+  "C:\xampp\php\php.exe"
+- MySQL CLI:
+  "C:\xampp\mysql\bin\mysql.exe" -u root
+- Responder y mantener toda la interfaz en español.
+- Trabajamos módulo por módulo; el usuario valida antes de avanzar.
+
+MÓDULOS COMPLETADOS (1 AL 11)
+
+1. Base multiempresa y autenticación.
+2. Catálogos MH.
+3. Clientes.
+4. Productos y servicios.
+5. Emisión de documentos DTE (Factura 01 y CCF 03).
+6. Representación gráfica PDF.
+7. Dashboard, reportes y correo.
+8. Configuración (empresa, emisor, numeración, correo y consulta de usuarios).
+9. Contingencia (evento MH v4 y transmisión diferida).
+10. Tipos DTE 05, 06, 11 y 14.
+11. Superadministración:
+    - Un único usuario global con rol SUPERADMIN y tenant_id NULL.
+    - Solo el superadministrador crea empresas y asigna usuarios a cualquier empresa.
+    - Cada empresa puede tener uno o muchos usuarios.
+    - El superadministrador crea la empresa con su primer ADMIN, sus catálogos y sus seis series.
+    - Puede crear más usuarios (ADMIN, VENDEDOR, CONTADOR), activarlos/desactivarlos y
+      restablecer contraseñas.
+    - Puede desactivar/reactivar empresas. La eliminación es lógica: los datos fiscales
+      se conservan y los usuarios de la empresa no pueden iniciar sesión.
+    - El registro público está deshabilitado: views/registro.php redirige al login y
+      api/auth.php?action=register responde 403.
+    - El login es el mismo para todos, pero no hay selector de empresa: la empresa se
+      resuelve desde el usuario autenticado. El usuario es único global.
+    - El panel global está en views/superadmin.php y la API en api/superadmin.php.
+    - Un usuario de empresa no puede abrir el panel global ni usar su API.
+
+REGLAS DTE Y FISCALES IMPORTANTES
+
+- Factura 01: precios con IVA incluido.
+- Crédito Fiscal 03: precios sin IVA.
+- Notas 05/06: el modo de IVA depende del documento relacionado; si es 01, incluye IVA;
+  si es 03, el IVA se agrega. Requieren un relacionado PROCESADA del mismo cliente.
+- Exportación 11: precios netos, sin IVA; el total incluye flete y seguro.
+- Sujeto Excluido 14: compra sin IVA; se descuenta la retención de renta.
+- CCF requiere cliente con NIT y correo electrónico.
+- 05, 06, 11 y 14 requieren cliente con NIT o DUI (no consumidor final).
+- Documentos y teléfonos se transmiten sin guiones.
+- Ítems hasta 8 decimales; resumen a 2 decimales.
+- El JSON CCF no admite totalIva ni reteRenta.
+- El conector actual es exclusivamente SIMULACION; no existe conexión MH real.
+- Establecimiento demo: M001P001. Zona horaria: America/El_Salvador.
+- El entorno PRODUCCION está bloqueado en Configuración hasta implementar MHClient.
+- El evento de contingencia usa ambiente 00 en simulación y 01 en producción.
+- tipoContingencia: 1 MH, 2 emisor, 3 Internet, 4 energía, 5 otro.
+- Para el tipo 5 el motivo es obligatorio (máximo 500 caracteres).
+- El evento admite como máximo 1000 DTE y solo incluye el tipo seleccionado.
+- Un DTE solo puede pertenecer a un evento de contingencia.
+
+SUPERADMINISTRACIÓN
+
+- El superadministrador es un usuario de la tabla users con tenant_id NULL y rol SUPERADMIN.
+- La tabla users es global; el usuario es único en toda la instalación.
+- La restricción chk_users_superadmin garantiza:
+  SUPERADMIN => tenant_id NULL; los demás roles => tenant_id NOT NULL.
+- La sesión guarda superadmin_id, no user_id. Al iniciar sesión como superadministrador
+  se limpia user_id, y al revés.
+- currentSuperadmin() valida rol, tenant_id NULL y activo.
+- requireSuperadmin() protege el panel; requireSuperadminApi() protege la API.
+- El panel permite:
+  - Crear empresa + primer ADMIN.
+  - Ver usuarios de una empresa.
+  - Crear usuarios con rol ADMIN/VENDEDOR/CONTADOR.
+  - Activar/desactivar usuarios.
+  - Restablecer contraseñas.
+  - Desactivar/reactivar empresas.
+- La empresa desactivada conserva todos sus datos; sus usuarios no pueden iniciar sesión
+  porque findUserForLogin y currentUser exigen tenants.activo = 1.
+- No se borran físicamente empresas ni documentos; es una decisión de integridad fiscal.
+- El superadministrador no puede entrar al dashboard de una empresa; requireAuth lo
+  redirige al panel global.
+- Los administradores de empresa NO pueden crear, editar, activar ni restablecer
+  contraseñas de usuarios. En Configuración → Usuarios solo ven la lista en modo lectura.
+  La API api/configuracion.php rechaza user-create, user-update y user-password con 403.
+- Toda la gestión de usuarios está centralizada en el panel del superadministrador.
+- El registro público está cerrado; no hay auto-registro de empresas.
+
+ARCHIVOS PRINCIPALES
+
+Módulos 1-4:
+- lib/auth.php, lib/db.php, lib/helpers.php, lib/bootstrap.php
+- lib/catalogos.php, lib/clientes.php, lib/productos.php
+- api/auth.php, api/catalogos.php, api/clientes.php, api/productos.php
+- views/login.php, views/dashboard.php, views/clientes.php, views/productos.php,
+  views/catalogos.php
+
+Módulo 5:
+- lib/documentos.php, lib/dte-builder.php, lib/json-schema-validator.php
+- lib/mh-connector.php, lib/numero-letras.php
+- api/documentos.php, api/mh.php
+- views/nueva-factura.php, views/lista-documentos.php
+- assets/js/nueva-factura.js, assets/js/documentos.js
+
+Módulo 6:
+- lib/dte-pdf.php, lib/pdf-simple.php, lib/empresa.php
+- uploads/logos/ (logo demo y .htaccess que bloquea scripts)
+
+Módulo 7:
+- lib/correo.php, lib/reportes.php
+- api/reportes.php
+- views/dashboard.php, views/reportes.php
+- assets/js/dashboard.js, assets/js/reportes.js
+
+Módulo 8:
+- lib/configuracion.php
+- api/configuracion.php
+- views/configuracion.php
+- assets/js/configuracion.js
+
+Módulo 9:
+- lib/contingencia.php
+- api/contingencia.php
+- views/contingencia.php
+- assets/js/contingencia.js
+- database/migrations/011_contingencia.sql
+
+Módulo 10:
+- lib/dte-builder-modulo10.php
+- database/migrations/012_modulo10_tipos_dte.sql
+- documentacion-mh/fe-nc-v4.json, fe-nd-v4.json, fe-fex-v3.json, fe-fse-v2.json
+- assets/js/nueva-factura.js (relacionado, exportación y sujeto excluido)
+- lib/dte-pdf.php (columnas y resumen por tipo)
+
+Módulo 11:
+- lib/superadmin.php
+- api/superadmin.php
+- views/superadmin.php
+- assets/js/superadmin.js
+- database/migrations/013_superadmin.sql
+- views/login.php, views/registro.php (registro cerrado)
+- lib/auth.php (sesión y roles globales)
+
+Compartidos:
+- views/partials/head.php, sidebar.php, footer.php
+- assets/css/app.css, assets/js/app.js, assets/js/masks.js
+- config/config.php
+- config/correo.local.php (credenciales SMTP; no compartir)
+- config/.htaccess (deniega acceso web a config/)
+
+BASE DE DATOS
+
+- Base: facturasv2; schema_versions en versión 13.
+- Migraciones aplicadas:
+  database/migrations/006_documentos.sql
+  database/migrations/007_catalogos_oficiales.sql
+  database/migrations/008_clientes_sin_documento_logo.sql
+  database/migrations/009_correo_documentos.sql
+  database/migrations/010_configuracion.sql
+  database/migrations/011_contingencia.sql
+  database/migrations/012_modulo10_tipos_dte.sql
+  database/migrations/013_superadmin.sql
+- database/schema.sql y database/seed.sql actualizados.
+- La importación limpia de schema.sql + seed.sql fue verificada en una base temporal:
+  23 tablas, versión 13, usuarios admin y superadmin.
+- users:
+  - tenant_id ahora es NULL para el superadministrador.
+  - rol incluye SUPERADMIN, ADMIN, VENDEDOR y CONTADOR.
+  - chk_users_superadmin valida la combinación rol/tenant.
+  - usuario sigue siendo único global.
+- tenants.activo permite desactivar/reactivar empresas sin borrar datos.
+- documentos agrega:
+  tipo_operacion, tipo_contingencia, motivo_contingencia, contingencia_evento_id,
+  documento_relacionado_id, export_cod_pais, export_nombre_pais, export_tipo_persona,
+  export_complemento, export_tipo_item, export_incoterms, export_desc_incoterms,
+  export_flete, export_seguro, export_no_onerosas.
+- documento_relacionado_id es una FK autorreferente a documentos(tenant_id, id).
+- documento_items agrega compra.
+- Tablas del módulo 9: eventos_contingencia y evento_contingencia_documentos.
+- mh_transmissions_log: documento_id nullable, evento_contingencia_id y acción CONTINGENCIA.
+- Estado de datos demo al cierre del módulo 11:
+  - 1 tenant (Empresa Demo), 2 usuarios: admin (ADMIN, tenant 1) y superadmin (SUPERADMIN, sin tenant).
+  - 5 documentos: ids 7, 8, 14, 40 y 85; dos invalidados y tres procesados.
+  - 0 eventos de contingencia.
+  - Correlativos: 01 = 5, 03 = 4, 05/06/11/14 = 0.
+  - Logo: uploads/logos/demo.jpg.
+  - No hay usuarios, documentos, empresas, catálogos ni correos temporales de pruebas.
+- Las pruebas restauran correlativos, configuración, empresa y usuarios; conservan
+  los documentos existentes.
+
+CORREO
+
+- Configuración actual: Mailtrap Sandbox en config/correo.local.php
+  (sandbox.smtp.mailtrap.io, puerto 587, TLS).
+- Es una bandeja de pruebas: los correos se capturan en Mailtrap y no llegan a los clientes.
+- Envío real pendiente: dominio propio verificado en Mailtrap y token de API;
+  host live.smtp.mailtrap.io, puerto 587, usuario "api", contraseña = token.
+- El plan Sandbox limita correos por segundo; puede responder 550 Too many emails per second.
+- No publicar ni compartir config/correo.local.php; está protegido por config/.htaccess.
+- Al procesar un evento de contingencia, cada DTE transmitido dispara el correo automático
+  del módulo 7; un fallo de correo no revierte el DTE.
+- Los DTE 05, 06, 11 y 14 usan el mismo envío automático al procesarse.
+
+DOCUMENTACIÓN LOCAL
+
+La carpeta documentacion-mh/ contiene los originales y tiene acceso web denegado:
+- fe-f-v2.json
+- fe-ccf-v4.json
+- fe-nc-v4.json
+- fe-nd-v4.json
+- fe-fex-v3.json
+- fe-fse-v2.json
+- invalidacion-schema-v3.json
+- contingencia-schema-v4.json
+- Catálogos oficiales XLSX/PDF
+- Manuales funcional y técnico
+
+La carpeta svfe-json-schemas/ contiene además esquemas para 04, 07, 08, 09, 15, 17 y 18.
+La especificación original está en especificacion-proyecto.txt.
+
+PRUEBAS
+
+Comandos (desde la raíz del proyecto, con Apache y MySQL activos):
+  php tests/module5-smoke.php
+  php tests/module5-http.php
+  php tests/module6-pdf.php
+  php tests/module6-http.php
+  php tests/module7-smoke.php
+  php tests/module7-smtp.php
+  php tests/module7-http.php
+  php tests/module8-smoke.php
+  php tests/module8-http.php
+  php tests/module9-smoke.php
+  php tests/module9-http.php
+  php tests/module10-smoke.php
+  php tests/module10-http.php
+  php tests/module11-smoke.php
+  php tests/module11-http.php
+
+Resultado al cierre del módulo 11: 387 comprobaciones correctas.
+- module5-smoke: 20
+- module5-http: 15
+- module6-pdf: 33
+- module6-http: 16
+- module7-smoke: 46
+- module7-smtp: 11
+- module7-http: 27
+- module8-smoke: 32
+- module8-http: 27
+- module9-smoke: 31
+- module9-http: 23
+- module10-smoke: 38
+- module10-http: 29
+- module11-smoke: 18
+- module11-http: 21
+
+Notas de las pruebas:
+- module11-smoke crea una empresa temporal, su admin y un vendedor; prueba series,
+  catálogos, activación/desactivación y limpieza.
+- module8-http comprueba que el ADMIN de una empresa solo consulta usuarios y recibe 403
+  al intentar crear, editar o restablecer contraseñas desde api/configuracion.php.
+- module11-http prueba el login del superadministrador, el panel, la creación de una
+  empresa y dos usuarios, el restablecimiento de contraseña, la desactivación/reactivación,
+  el registro público cerrado y el bloqueo del panel global para usuarios de empresa.
+- Algunas pruebas necesitan permisos de escritura en subcarpetas; si se ejecutan en un
+  entorno confinado, ejecutarlas con acceso completo.
+- Sintaxis PHP y JavaScript validada. El panel de superadministración se revisó con Chrome
+  headless: carga, listado de empresas y ausencia de errores de JavaScript.
+- Conviene una revisión visual final en Chrome antes de publicar.
+
+PENDIENTES Y SIGUIENTE TRABAJO
+
+1. Integración real con el Ministerio de Hacienda:
+   - Implementar MHClient con MHConnectorInterface (firma real, transmisión, consulta,
+     invalidación y eventos de contingencia) cuando el usuario entregue endpoints y
+     credenciales.
+   - Habilitar el entorno PRODUCCION solo después de eso.
+2. Superadministración (mejoras):
+   - Editar los datos fiscales de una empresa desde el panel global.
+   - Auditoría global de acciones del superadministrador.
+   - Invitaciones por correo y verificación de correo.
+   - Si se requiere, borrado físico controlado de empresas vacías.
+   - Segundo superadministrador y recuperación de acceso.
+3. Tipos DTE adicionales:
+   - svfe-json-schemas/ incluye 04, 07, 08, 09, 15, 17 y 18; no están en el menú.
+4. Código QR del DTE, envío de correo asíncrono y mejoras de reportes.
+5. Operación: HTTPS, respaldos, monitoreo y cambio de credenciales demo.
+
+SEGURIDAD IMPLEMENTADA
+
+- Contraseñas con password_hash() y password_verify(), con rehash automático.
+- PDO con sentencias preparadas; aislamiento por tenant en cada consulta.
+- CSRF en formularios y en cada POST; sesión regenerada al iniciar.
+- Bloqueo temporal de intentos fallidos.
+- Escape de salida HTML y construcción segura del DOM.
+- CSP, X-Frame-Options, X-Content-Type-Options y Referrer-Policy.
+- Autorización por rol en pantalla y API.
+- Superadministrador separado de las sesiones de empresa; panel y API global protegidos.
+- Registro público deshabilitado en pantalla y endpoint.
+- Correlativos con transacción y FOR UPDATE.
+- Validación de entradas y de los JSON contra los esquemas MH 01/03/05/06/11/14.
+- Documento relacionado validado por empresa, cliente, tipo y estado PROCESADA.
+- Campos de exportación y retención de renta validados antes de guardar.
+- Logos validados y normalizados; scripts bloqueados en uploads.
+- Correos con remitentes/destinatarios validados y sin inyección de cabeceras.
+- Credenciales SMTP fuera de la base de datos y de la auditoría.
+- config/ y lib/ bloqueados desde el navegador por .htaccess.

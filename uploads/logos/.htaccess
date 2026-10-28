@@ -1,0 +1,5 @@
+# Solo imágenes; bloquear cualquier script subido a esta carpeta.
+<FilesMatch "\.(php|phtml|phar|php[0-9]|cgi|pl|py|sh|htaccess)$">
+    Require all denied
+</FilesMatch>
+Options -Indexes

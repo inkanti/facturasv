@@ -1,0 +1,83 @@
+Build a production-quality, Spanish-language multi-tenant SaaS web application called "FacturaSV" for electronic invoicing (facturación electrónica) for businesses in El Salvador. The app must be full-stack with real persistent data storage and role-based access control.
+
+## DEVELOPMENT PROCESS (MANDATORY WORKFLOW)
+We will build this application MODULE BY MODULE, not all at once. Follow this process strictly:
+
+1. Before starting, show me a numbered list of all modules with a one-line description, and ask which one to build first. Suggest starting with: (1) Base project + auth + database schema, (2) Catálogos MH, (3) Clientes, (4) Productos, (5) Emisión de DTE, (6) Representación gráfica PDF, (7) Dashboard y reportes, (8) Configuración.
+2. Build ONE module per request. After each module: show me how to test it, wait for my confirmation, then ask "¿Siguiente módulo?"
+3. When building the DTE module, FIRST ask me to upload the official MH documentation you need (JSON schema v1.2, catálogos, guía de cálculo de totales). List exactly which documents you need: esquema JSON del DTE, catálogos (unidades de medida, tipos de documento, formas de pago, departamentos/municipios), manual de cálculo del resumen, y reglas de numeración de control. If I don't have a document yet, build with your best understanding and mark the code section with // TODO-MH: (pendiente documento MH) so we can fix it later.
+4. Never skip ahead to a module I haven't requested.
+
+## MH INTEGRATION: SIMULATION NOW, REAL LATER
+- For now, ALL transmission to Ministerio de Hacienda must be SIMULATED with a mock layer: build /lib/mh-connector.php as an interface with methods: firmarDocumento(), transmitirDTE(), consultarEstado(), invalidarDTE(). Implement a MHMock class that simulates realistic responses (selloRecetion with random code, estado: PROCESADO after 2 seconds, etc.) and logs transmissions to a database table mh_transmissions_log.
+- Design this so the real implementation later is a drop-in replacement: the same interface, just swap MHMock → MHClient without touching any other file.
+- Add an app setting "mh_mode" (SIMULACION / PRODUCCION) stored in tenant configuration.
+- Do NOT hardcode any real MH endpoints, credentials or URLs yet. Mark them with // TODO-MH.
+- The simulated flow must be complete: generate DTE JSON → firmar (simulated signature string) → transmitir (mock) → store sello de recepción → update document status to PROCESADO → PDF shows the sello.
+
+## TECH STACK (MANDATORY — DO NOT SUBSTITUTE)
+- Backend: PHP 8+ (plain PHP), served with Apache/Nginx
+- Database: MySQL, with plain SQL files (no ORM)
+- Frontend: JavaScript + Bootstrap 5 + jQuery (NO React, NO Vue, NO Node.js backend)
+- AJAX calls via jQuery $.ajax to PHP REST endpoints (/api/*.php), returning JSON
+- All database access via PDO prepared statements
+- Project structure:
+  - /api (PHP endpoints: auth.php, clientes.php, productos.php, documentos.php, reportes.php, catalogos.php, mh.php)
+  - /views (PHP pages: login, dashboard, clientes, productos, nueva-factura, lista-documentos, reportes, config)
+  - /assets/css and /assets/js (custom styles and jQuery logic)
+  - /lib (shared PHP: db.php, auth.php, dte-builder.php, pdf-generator.php, mh-connector.php, helpers.php)
+  - /database/schema.sql and /database/seed.sql
+- Auth: PHP sessions, password_hash/password_verify, CSRF tokens on all forms
+- IMPORTANT: I will export this code and self-deploy it on my own LAMP server. Do not use any platform-specific features. Everything must run standalone on Apache + PHP 8 + MySQL 8. Include installation instructions for a LAMP stack (create DB, import schema.sql, point vhost to root, etc.)
+
+## TENANTS & USERS
+- Each company (tenant) registers with: NIT, legal name (razón social), trade name (nombre comercial), activity code (código de actividad económica), address, phone, email, and MH registration number (número de registro MH).
+- Within a tenant there are roles: ADMIN (manages everything: users, configuration, numbering), VENDEDOR (creates documents), CONTADOR (read-only + reports).
+- Per-tenant document numbering sequences (correlativos) configured by ADMIN: prefix, start number, per document type and establishment.
+- Users belong to exactly one tenant; all queries must filter by tenant_id.
+
+## CORE MODULES
+
+1. CLIENTES (contribuyentes receptores)
+- CRUD with: NIT or DUI, nombre/razón social, nombre comercial, actividad económica, dirección (complemento, departamento, municipio), teléfono, correo, tipo de contribuyente (gran contribuyente / sujeto excluido / otro).
+- El Salvador's 14 departments and their municipalities as dropdowns (catálogo MH).
+- Search, pagination, CSV import/export.
+
+2. PRODUCTOS Y SERVICIOS
+- CRUD with: código, descripción, tipo (bien/servicio), unidad de medida, precio unitario, IVA rate (13% or exento), options for venta no sujeta / exenta, stock tracking optional.
+- Status active/inactive.
+
+3. EMISIÓN DE DOCUMENTOS (DTE)
+- Document types: Factura (01), Crédito Fiscal (03), Nota de Crédito (05), Nota de Débito (06), Factura de Exportación (11), Factura de Sujeto Excluido (14).
+- Form: select client, fecha de emisión, condición de la operación (contado / crédito con días), forma de pago (efectivo, tarjeta, transferencia, cheque, otro), one or more items with cantidad, precio, descuento per line, optional IVA retenido.
+- Auto-computed summary per El Salvador DTE rules: totalGravada, totalExenta, totalNoSuj, subTotalVentas, descuNoSuj, descuExenta, descuGravada, porcentajeDescuento, totalDescu, tributos (IVA 13%), subTotal, ivaRete1, reteRenta, montoTotalOperación, totalNoGravado, totalPagar, totalLetras (monto en palabras en español), totalIva.
+- DTE JSON structure (identificación: version, ambiente, tipoDte, numeroControl, codigoGeneracion, tipoModelo, tipoOperacion, tipoContingencia, fecEmi, horEmi, tipoMoneda; emisor; receptor; cuerpoDocumento[]; resumen; extension optional), stored in database. Mark with // TODO-MH wherever official MH schema confirmation is pending.
+- Printable PDF invoice ("Representación Gráfica") with emisor header (logo placeholder, NIT, dirección, teléfono), receptor block, item table, summary, monto en letras, número de control, código de generación, sello de recepción, and signature space.
+- Status workflow: BORRADOR → EMITIDA → transmitir (simulado) → PROCESADA / RECHAZADA → INVALIDADA, with reason required for invalidation.
+- Every transmission attempt logged in mh_transmissions_log (json sent, mock response, timestamp, user).
+
+4. CATÁLOGOS MH
+- Database tables for MH catalogs: tipo de documento, tipo de establecimiento, tipo de item, unidad de medida, condición de operación, formas de pago, departamentos y municipios de El Salvador. ADMIN can edit them. These feed the dropdowns in all forms. Seed with best-known values and mark // TODO-MH pending official catalog confirmation.
+
+5. DASHBOARD Y REPORTES
+- KPIs: ingresos del mes, documentos emitidos del mes, top 5 clientes, IVA generado del mes, documentos pendientes.
+- Reports: ventas por rango de fechas, ventas por cliente, ventas por producto, resumen mensual de IVA (ventas gravadas, débito fiscal 13%). Filter by date range. Export to CSV.
+
+## DESIGN
+- Modern admin dashboard layout: fixed left sidebar navigation (Dashboard, Nuevo Documento, Documentos, Clientes, Productos, Reportes, Catálogos, Configuración), topbar with tenant name and user menu.
+- Bootstrap 5 components only, Spanish labels exclusively.
+- Color palette: deep blue (#1e3a8a) primary, white cards, subtle shadows, clean typography.
+- Responsive: usable on desktop and tablet.
+- Currency formatting: $ with 2 decimals and thousand separators.
+- All validation and error messages in Spanish, shown inline in forms.
+- Login page: centered card, FacturaSV logo placeholder, tenant NIT + usuario + contraseña.
+
+## DATA & SECURITY
+- Unique constraints: NIT per tenant (clientes), document numbering unique per tenant+tipoDte+serie.
+- FK relationships with ON DELETE RESTRICT where appropriate.
+- All inputs validated server-side; SQL injection safe (PDO prepared statements); XSS safe (htmlspecialchars on output); CSRF tokens.
+- seed.sql: one demo tenant "Empresa Demo SA de CV" (NIT 0614-000000-000-0) with an ADMIN user (admin / Demo1234!), 3 demo clients, 5 demo products, catalogs, and mh_mode = SIMULACION — so the app works immediately after install.
+
+Deliver the complete file tree per module, schema.sql, seed.sql, and a README.md with LAMP installation steps.
+
+Start now by showing me the module list and asking which module to build first.

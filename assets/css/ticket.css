@@ -1,0 +1,451 @@
+/* Ticket térmico: 80 mm por defecto, 58 mm con ticket-58.css */
+.ticket-page {
+    --ticket-width: 80mm;
+    --ticket-font: 10px;
+    --ticket-pad: 4mm;
+    --ticket-logo: 22mm;
+    background: #e8eef8;
+    color: #111;
+    font-family: "Courier New", Courier, monospace;
+    margin: 0;
+    min-height: 100vh;
+}
+
+.ticket-page.ticket-58 {
+    --ticket-width: 58mm;
+    --ticket-font: 8.4px;
+    --ticket-pad: 2.6mm;
+    --ticket-logo: 16mm;
+}
+
+.ticket-shell {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    padding: 24px 12px 48px;
+}
+
+.ticket-toolbar {
+    align-items: center;
+    background: #fff;
+    border: 1px solid #dbe6f5;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(15, 45, 107, 0.08);
+    display: flex;
+    flex-wrap: wrap;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    gap: 10px;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    max-width: calc(100vw - 24px);
+    padding: 10px 12px;
+    width: var(--ticket-width);
+}
+
+.ticket-toolbar-title {
+    align-items: baseline;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.ticket-toolbar-title a {
+    color: #1d4ed8;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.ticket-toolbar-title strong {
+    color: #0f2d6b;
+    font-size: 12px;
+}
+
+.ticket-toolbar-title span {
+    color: #64748b;
+    font-size: 10px;
+}
+
+.ticket-toolbar-actions {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+}
+
+.ticket-format-switch {
+    background: #eef4fc;
+    border-radius: 8px;
+    display: inline-flex;
+    padding: 2px;
+}
+
+.ticket-format-switch a {
+    border-radius: 6px;
+    color: #48617f;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 5px 8px;
+    text-decoration: none;
+}
+
+.ticket-format-switch a.active {
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(15, 45, 107, 0.16);
+    color: #0f2d6b;
+}
+
+.ticket-sheet {
+    background: #fff;
+    border-radius: 4px;
+    box-shadow: 0 18px 50px rgba(15, 45, 107, 0.14);
+    font-size: var(--ticket-font);
+    line-height: 1.38;
+    padding: var(--ticket-pad);
+    width: var(--ticket-width);
+}
+
+.ticket-header {
+    text-align: center;
+}
+
+.ticket-logo {
+    display: block;
+    margin: 0 auto 2.5mm;
+    max-height: var(--ticket-logo);
+    max-width: 100%;
+    object-fit: contain;
+}
+
+.ticket-company-name {
+    font-family: "Segoe UI", Arial, sans-serif;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+
+.ticket-company-legal {
+    font-size: 0.9em;
+    margin-top: 1mm;
+}
+
+.ticket-company-meta {
+    display: flex;
+    flex-wrap: wrap;
+    font-size: 0.82em;
+    gap: 0 2.5mm;
+    justify-content: center;
+    line-height: 1.35;
+    margin-top: 0.8mm;
+}
+
+.ticket-company-address {
+    display: block;
+    font-size: 0.8em;
+    margin-top: 1mm;
+}
+
+.ticket-separator {
+    border-top: 1px dashed #333;
+    margin: 2.4mm 0;
+}
+
+.ticket-document {
+    text-align: center;
+}
+
+.ticket-doc-kicker {
+    font-size: 0.78em;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.ticket-doc-type {
+    font-family: "Segoe UI", Arial, sans-serif;
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 1.2;
+    margin: 0.6mm 0;
+}
+
+.ticket-doc-number {
+    font-size: 0.9em;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.ticket-doc-date {
+    font-size: 0.82em;
+    margin-top: 0.6mm;
+}
+
+.ticket-client,
+.ticket-totals {
+    font-size: 0.9em;
+}
+
+.ticket-row,
+.ticket-total-row {
+    display: flex;
+    gap: 2mm;
+    justify-content: space-between;
+    line-height: 1.4;
+}
+
+.ticket-row > :first-child,
+.ticket-total-row > :first-child {
+    flex: 0 0 auto;
+}
+
+.ticket-row > :last-child,
+.ticket-total-row > :last-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    text-align: right;
+}
+
+.ticket-row strong {
+    font-weight: 700;
+}
+
+.ticket-items {
+    margin: 0;
+}
+
+.ticket-item {
+    break-inside: avoid;
+    border-bottom: 1px dotted #999;
+    padding: 1.6mm 0;
+}
+
+.ticket-item:last-child {
+    border-bottom: 0;
+}
+
+.ticket-item-line {
+    display: flex;
+    gap: 2mm;
+    justify-content: space-between;
+}
+
+.ticket-item-name {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.ticket-item-line strong {
+    flex: 0 0 auto;
+    font-weight: 700;
+}
+
+.ticket-item-meta {
+    color: #333;
+    display: flex;
+    font-size: 0.82em;
+    gap: 2mm;
+    justify-content: space-between;
+    margin-top: 0.4mm;
+}
+
+.ticket-totals {
+    margin-top: 0.5mm;
+}
+
+.ticket-total-row span:last-child {
+    font-variant-numeric: tabular-nums;
+}
+
+.ticket-grand-total {
+    border-top: 1.5px solid #111;
+    font-size: 1.18em;
+    font-weight: 800;
+    margin-top: 1.2mm;
+    padding-top: 1.2mm;
+}
+
+.ticket-grand-total strong {
+    font-weight: 800;
+}
+
+.ticket-footer {
+    text-align: center;
+}
+
+.ticket-qr {
+    text-align: center;
+}
+
+.ticket-qr img {
+    display: block;
+    height: 36mm;
+    image-rendering: pixelated;
+    margin: 0 auto 1mm;
+    width: 36mm;
+}
+
+.ticket-qr p {
+    font-size: 0.72em;
+    margin: 0;
+}
+
+.ticket-page.ticket-58 .ticket-qr img {
+    height: 28mm;
+    width: 28mm;
+}
+
+.ticket-thanks {
+    font-size: 0.95em;
+    font-weight: 700;
+    margin: 0 0 1.5mm;
+}
+
+.ticket-code {
+    font-size: 0.76em;
+    margin-top: 1mm;
+    overflow-wrap: anywhere;
+}
+
+.ticket-code span {
+    display: block;
+    font-weight: 700;
+}
+
+.ticket-code code {
+    color: #111;
+    font-family: inherit;
+    font-size: 1em;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    word-break: break-all;
+}
+
+.ticket-disclaimer {
+    font-size: 0.74em;
+    margin: 1.8mm 0 0;
+}
+
+.ticket-brand {
+    font-family: "Segoe UI", Arial, sans-serif;
+    font-size: 0.78em;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    margin: 1mm 0 0;
+    text-transform: uppercase;
+}
+
+.ticket-flag {
+    border: 1.5px solid #92400e;
+    color: #92400e;
+    font-size: 0.8em;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    margin-bottom: 2mm;
+    padding: 1mm;
+    text-align: center;
+}
+
+.ticket-flag-danger {
+    border-color: #b91c1c;
+    color: #b91c1c;
+}
+
+.ticket-error {
+    background: #fff;
+    border: 1px solid #fecaca;
+    border-radius: 14px;
+    box-shadow: 0 18px 50px rgba(15, 45, 107, 0.12);
+    font-family: "Segoe UI", system-ui, sans-serif;
+    max-width: 460px;
+    padding: 28px;
+    text-align: center;
+}
+
+.ticket-error-kicker {
+    color: #b91c1c;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    margin: 0;
+    text-transform: uppercase;
+}
+
+.ticket-error h1 {
+    color: #0f2d6b;
+    font-size: 22px;
+    margin: 6px 0 10px;
+}
+
+.ticket-error p {
+    color: #475569;
+    font-size: 14px;
+    margin: 0 0 18px;
+}
+
+@media (max-width: 480px) {
+    .ticket-shell {
+        padding: 12px 8px 28px;
+    }
+
+    .ticket-toolbar {
+        align-items: flex-start;
+        flex-direction: column;
+        padding: 10px;
+    }
+
+    .ticket-toolbar-actions {
+        justify-content: space-between;
+        width: 100%;
+    }
+}
+
+@media print {
+    @page {
+        margin: 3mm;
+        size: 80mm auto;
+    }
+
+    html,
+    body.ticket-page {
+        background: #fff !important;
+    }
+
+    body.ticket-page {
+        -webkit-print-color-adjust: exact;
+        min-height: 0;
+        print-color-adjust: exact;
+    }
+
+    .ticket-shell {
+        display: block;
+        padding: 0;
+    }
+
+    .ticket-toolbar {
+        display: none !important;
+    }
+
+    .ticket-sheet {
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+        margin: 0;
+        max-width: none;
+        padding: 0;
+        width: 100%;
+    }
+
+    .ticket-page a {
+        color: inherit;
+        text-decoration: none;
+    }
+
+    .ticket-item,
+    .ticket-totals,
+    .ticket-qr,
+    .ticket-footer {
+        break-inside: avoid;
+    }
+}

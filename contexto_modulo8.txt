@@ -1,0 +1,285 @@
+contexto
+
+Estoy desarrollando FacturaSV, un SaaS multiempresa de facturación electrónica para El Salvador.
+Los módulos 1 al 8 están completos y probados. El siguiente trabajo es la integración real con
+el Ministerio de Hacienda y los tipos de DTE que aún no tienen esquema.
+
+ENTORNO Y RESTRICCIONES
+
+- Workspace:
+  C:\xampp\htdocs\sistemas\factElectronica_saas\facturacion electronica
+- Trabajar únicamente dentro de ese directorio.
+- Base de datos exclusiva: facturasv2. No utilizar ni modificar otras bases.
+- Stack: PHP 8 plano, PDO, MySQL/MariaDB, Bootstrap 5 y jQuery.
+- No usar Composer, frameworks ni Node.js para la aplicación.
+- No usar subagentes.
+- Aplicación compatible con Apache + PHP 8 + MySQL 8 y MariaDB 10.4+.
+- URL local:
+  http://localhost/sistemas/factElectronica_saas/facturacion%20electronica/
+- Acceso demo:
+  Usuario: admin
+  Contraseña: Demo1234!
+- PHP CLI:
+  "C:\xampp\php\php.exe"
+- MySQL CLI:
+  "C:\xampp\mysql\bin\mysql.exe" -u root
+- Responder y mantener toda la interfaz en español.
+- Trabajamos módulo por módulo; el usuario valida antes de avanzar.
+
+MÓDULOS COMPLETADOS (1 AL 8)
+
+1. Base multiempresa y autenticación:
+   - Inicio de sesión solo con usuario y contraseña.
+   - Roles ADMIN, VENDEDOR y CONTADOR.
+   - Sesiones, CSRF, password_hash, bloqueo de intentos y aislamiento por tenant.
+   - Máscaras NIT 0000-000000-000-0 y teléfono 0000-0000.
+
+2. Catálogos MH:
+   - Independientes por empresa, con administración, búsqueda, filtros y estados.
+   - 14 departamentos y 44 municipios; unidades y formas de pago oficiales.
+
+3. Clientes:
+   - CRUD, NIT/DUI/NINGUNO, ubicación, búsqueda, paginación e importación/exportación CSV.
+   - Los clientes sin documento (consumidor final) solo se usan en Factura 01.
+
+4. Productos y servicios:
+   - CRUD, bienes/servicios, unidad MH, precio, tratamiento IVA y stock opcional.
+   - Permisos, CSRF, duplicados y aislamiento por empresa.
+
+5. Emisión de documentos DTE:
+   - Factura 01 y Comprobante de Crédito Fiscal 03.
+   - Los tipos 05, 06, 11 y 14 siguen pendientes porque no tenemos sus esquemas oficiales.
+   - Borradores, edición y eliminación de borradores.
+   - Ítems dinámicos, cantidad, precio editable y descuento por línea.
+   - Contado/crédito con días, forma de pago y retención opcional de IVA del 1 %.
+   - Totales y monto en letras.
+   - Correlativos independientes por empresa, tipo y establecimiento.
+   - Número de control de 31 caracteres:
+     DTE-01-M001P001-000000000000001
+   - UUID, JSON DTE, validación contra esquemas oficiales, firma simulada,
+     transmisión simulada, sello de 40 caracteres y consulta.
+   - Estados: BORRADOR → EMITIDA → PROCESADA / RECHAZADA → INVALIDADA.
+   - Historial de firma, transmisión, consulta e invalidación.
+   - Descarga JSON, reintento e invalidación por ADMIN.
+   - VENDEDOR crea y transmite; CONTADOR solo consulta y descarga.
+
+6. Representación gráfica PDF:
+   - PDF tamaño carta generado sin librerías externas (lib/pdf-simple.php).
+   - Encabezado con logo, datos del emisor, receptor, número de control,
+     código de generación, sello, fecha, ítems, resumen, monto en letras,
+     observaciones y espacio de firma.
+   - Marca de agua y etiqueta para documentos INVALIDADA.
+   - Paginación para documentos con muchas líneas, con resumen y firma al final.
+   - Descarga en línea o adjunta desde el detalle y la lista de documentos.
+   - Logo opcional por empresa, normalizado a JPEG en uploads/logos/.
+
+7. Dashboard, reportes y correo:
+   - Dashboard con ingresos, documentos, IVA, pendientes, comparación mensual,
+     gráfico de 6 meses, top 5 clientes y documentos recientes.
+   - Reportes por rango: resumen, ventas por cliente, por producto, IVA mensual
+     y ventas por día. Exportación CSV con BOM UTF-8 y punto y coma.
+   - Solo suman los documentos PROCESADA; invalidados y pendientes se informan aparte.
+   - Envío automático del PDF y del JSON al correo del cliente al procesar el DTE.
+   - Reenvío manual, historial de envíos por documento y manejo de errores SMTP.
+   - Transportes: smtp, mail o simulado. Cliente SMTP propio con TLS y AUTH LOGIN.
+   - Cliente sin correo queda como OMITIDO; un fallo de correo no revierte el DTE.
+
+8. Configuración (solo ADMIN):
+   - Empresa: razón social, nombre comercial, NIT, NRC, actividad, dirección,
+     teléfono, correo y logo (subir/quitar).
+   - Emisor y DTE: establecimiento/punto de venta (8 caracteres), distrito,
+     departamento y municipio del emisor, zona horaria y entorno MH.
+   - Numeración por tipo de documento: prefijo, número inicial, número actual y activa.
+     No permite bajar del último número emitido; una serie inactiva bloquea la emisión.
+   - Usuarios: crear, editar, activar/desactivar y restablecer contraseña.
+     Siempre debe quedar un ADMIN activo; nadie puede quitarse su propio rol.
+   - Correo: estado del transporte y envío de prueba. Las credenciales SMTP viven
+     en config/correo.local.php o variables MAIL_*, nunca en la base de datos.
+   - Historial de cambios en configuracion_cambios (sección, detalle, usuario, fecha).
+
+REGLAS DTE Y FISCALES IMPORTANTES
+
+- Factura 01: precios con IVA incluido.
+- Crédito Fiscal 03: precios sin IVA.
+- En ambos resúmenes, la base gravada y el IVA se presentan separados.
+- CCF requiere cliente con NIT y correo electrónico; DUI o sin documento no es válido.
+- Documentos y teléfonos se transmiten sin guiones.
+- Ítems hasta 8 decimales; resumen a 2 decimales.
+- El JSON CCF no admite totalIva ni reteRenta.
+- rete_renta se conserva únicamente como columna MySQL con valor 0.
+- El conector actual es exclusivamente SIMULACION; no existe conexión MH real.
+- Departamento y municipio del emisor ya son configurables (módulo 8); valores
+  iniciales 06 y 04. El distrito del emisor se guarda por documento.
+- Establecimiento demo: M001P001. Zona horaria: America/El_Salvador.
+- El número de control depende de empresa + tipo + establecimiento.
+- Cambiar el establecimiento crea series nuevas; los documentos anteriores
+  conservan su número de control.
+- El entorno PRODUCCION está bloqueado en Configuración hasta implementar MHClient.
+
+ARCHIVOS PRINCIPALES
+
+Módulo 1-4:
+- lib/auth.php, lib/db.php, lib/helpers.php, lib/bootstrap.php
+- lib/catalogos.php, lib/clientes.php, lib/productos.php
+- api/auth.php, api/catalogos.php, api/clientes.php, api/productos.php
+- views/login.php, views/registro.php, views/clientes.php, views/productos.php,
+  views/catalogos.php, views/dashboard.php
+
+Módulo 5:
+- lib/documentos.php, lib/dte-builder.php, lib/json-schema-validator.php
+- lib/mh-connector.php, lib/numero-letras.php
+- api/documentos.php, api/mh.php
+- views/nueva-factura.php, views/lista-documentos.php
+- assets/js/nueva-factura.js, assets/js/documentos.js
+
+Módulo 6:
+- lib/dte-pdf.php, lib/pdf-simple.php, lib/empresa.php
+- uploads/logos/ (logo demo y .htaccess que bloquea scripts)
+
+Módulo 7:
+- lib/correo.php, lib/reportes.php
+- api/reportes.php
+- views/dashboard.php, views/reportes.php
+- assets/js/dashboard.js, assets/js/reportes.js
+
+Módulo 8:
+- lib/configuracion.php
+- api/configuracion.php
+- views/configuracion.php
+- assets/js/configuracion.js
+
+Compartidos:
+- views/partials/head.php, sidebar.php, footer.php
+- assets/css/app.css, assets/js/app.js, assets/js/masks.js
+- config/config.php
+- config/correo.local.php (credenciales SMTP; no compartir)
+- config/.htaccess (deniega acceso web a config/)
+
+BASE DE DATOS
+
+- Base: facturasv2; schema_versions en versión 10.
+- Migraciones aplicadas:
+  database/migrations/006_documentos.sql
+  database/migrations/007_catalogos_oficiales.sql
+  database/migrations/008_clientes_sin_documento_logo.sql
+  database/migrations/009_correo_documentos.sql
+  database/migrations/010_configuracion.sql
+- database/schema.sql y database/seed.sql actualizados.
+- La importación limpia de schema.sql fue verificada: 21 tablas y versión 10.
+- Tablas nuevas de los últimos módulos:
+  documentos, documento_items, mh_transmissions_log, document_sequences,
+  documento_correos, configuracion_cambios.
+- tenant_config incluye: mh_mode, timezone, moneda, distrito_emisor,
+  departamento_emisor, municipio_emisor, establecimiento.
+- tenants incluye logo_path.
+- Estado de datos demo al cierre del módulo 8:
+  - 1 tenant, 1 usuario (admin), 6 clientes, 5 productos.
+  - 5 documentos: ids 7, 8, 14, 40 y 85; dos invalidados y tres procesados.
+  - 8 ítems de documento, 2 registros de correo ENVIADO.
+  - Correlativos: 01 = 5, 03 = 4, 05/06/11/14 = 0.
+  - Logo: uploads/logos/demo.jpg.
+  - configuracion_cambios vacía.
+  - No hay usuarios, documentos, ítems, logs ni correos temporales de pruebas.
+- Las pruebas restauran correlativos, configuración, empresa y usuarios; conservan
+  los documentos existentes.
+
+CORREO
+
+- Configuración actual: Mailtrap Sandbox en config/correo.local.php
+  (sandbox.smtp.mailtrap.io, puerto 587, TLS).
+- Es una bandeja de pruebas: los correos se capturan en Mailtrap y no llegan a los clientes.
+- Envío real pendiente: dominio propio verificado en Mailtrap y token de API;
+  host live.smtp.mailtrap.io, puerto 587, usuario "api", contraseña = token.
+- El plan Sandbox limita correos por segundo; puede responder
+  550 Too many emails per second. El sistema lo registra como ERROR.
+- No publicar ni compartir config/correo.local.php; está protegido por config/.htaccess.
+
+DOCUMENTACIÓN LOCAL
+
+La carpeta documentacion-mh/ contiene los originales y tiene acceso web denegado:
+- fe-f-v2.json
+- fe-ccf-v4.json
+- invalidacion-schema-v3.json
+- contingencia-schema-v4.json
+- Catálogos oficiales XLSX/PDF
+- Manuales funcional y técnico
+
+La especificación original está en:
+- especificacion-proyecto.txt
+
+PRUEBAS
+
+Comandos (desde la raíz del proyecto, con Apache y MySQL activos):
+  php tests/module5-smoke.php
+  php tests/module5-http.php
+  php tests/module6-pdf.php
+  php tests/module6-http.php
+  php tests/module7-smoke.php
+  php tests/module7-smtp.php
+  php tests/module7-http.php
+  php tests/module8-smoke.php
+  php tests/module8-http.php
+
+Resultado al cierre del módulo 8: 232 comprobaciones correctas.
+- module5-smoke: 20
+- module5-http: 15
+- module6-pdf: 33
+- module6-http: 16
+- module7-smoke: 46
+- module7-smtp: 11
+- module7-http: 27
+- module8-smoke: 32
+- module8-http: 32
+
+Notas de las pruebas:
+- module5-smoke, module6-pdf, module7-smoke y module8-smoke fuerzan el correo simulado
+  para no enviar correos reales; module7-http usa un cliente sin correo.
+- module7-smtp levanta un servidor SMTP local en 127.0.0.1 y no envía a Internet.
+- module5-http requiere que exista al menos un documento procesado.
+- module6-pdf escribe un logo temporal en uploads/logos.
+- Algunas pruebas necesitan permisos de escritura en subcarpetas; si se ejecutan en un
+  entorno confinado, ejecutarlas con acceso completo.
+- Sintaxis PHP y JavaScript validada. Las pantallas de los módulos 7 y 8 se revisaron
+  visualmente en Chrome, sin errores de JavaScript.
+
+PENDIENTES Y SIGUIENTE TRABAJO
+
+1. Integración real con el Ministerio de Hacienda:
+   - Implementar MHClient con MHConnectorInterface (firma real, transmisión, consulta
+     e invalidación) cuando el usuario entregue endpoints y credenciales.
+   - Habilitar el entorno PRODUCCION en Configuración solo después de eso.
+   - El único TODO-MH restante está en lib/mh-connector.php, línea ~60.
+2. Tipos DTE 05, 06, 11 y 14:
+   - No se generan hasta contar con sus esquemas oficiales.
+   - Requieren cálculo, JSON, PDF y pruebas propias.
+3. Código QR del DTE:
+   - No se incorpora porque la documentación disponible no lo exige para la
+     representación gráfica en modo simulación; evaluar con manuales de producción.
+4. Envío de correo:
+   - El envío es síncrono; evaluar cola/diferido y reintentos con espera para
+     límites del proveedor.
+   - Configurar dominio y token para envío real a clientes.
+5. Operación:
+   - HTTPS, permisos de escritura solo en uploads/logos/, respaldos, monitoreo.
+   - Documentar variables de entorno de producción.
+6. Mejoras posibles:
+   - Eliminar usuarios (hoy solo se desactivan) con reglas de integridad.
+   - Administrar más de un establecimiento desde la interfaz.
+   - Filtros adicionales en reportes y dashboard.
+   - Notificaciones o auditoría de emisiones.
+
+SEGURIDAD IMPLEMENTADA
+
+- Contraseñas con password_hash() y password_verify(), con rehash automático.
+- PDO con sentencias preparadas; aislamiento por tenant en cada consulta.
+- CSRF en formularios y en cada POST; sesión regenerada al iniciar.
+- Bloqueo temporal de intentos fallidos.
+- Escape de salida HTML y construcción segura del DOM.
+- CSP, X-Frame-Options, X-Content-Type-Options y Referrer-Policy.
+- Autorización por rol en pantalla y API (Configuración solo ADMIN).
+- Correlativos con transacción y FOR UPDATE.
+- Validación de entradas y de los JSON contra los esquemas MH.
+- Logos validados y normalizados; scripts bloqueados en uploads.
+- Correos con remitentes/destinatarios validados y sin inyección de cabeceras.
+- Credenciales SMTP fuera de la base de datos y de la auditoría.
+- config/ y lib/ bloqueados desde el navegador por .htaccess.

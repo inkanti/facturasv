@@ -1,0 +1,467 @@
+contexto
+
+Estoy desarrollando FacturaSV, un SaaS multiempresa de facturación electrónica para El Salvador.
+Los módulos 1 al 14 están completos y probados. Existen los seis tipos de DTE, un
+superadministrador global que crea empresas y administra usuarios, una página "Mi perfil"
+para que cada cuenta cambie únicamente su propia contraseña, un módulo de contabilidad
+y un inventario básico con movimientos, existencias y kardex. El siguiente trabajo es la
+integración real con el Ministerio de Hacienda.
+
+ENTORNO Y RESTRICCIONES
+
+- Workspace:
+  C:\xampp\htdocs\sistemas\factElectronica_saas\facturacion electronica
+- Trabajar únicamente dentro de ese directorio.
+- Base de datos exclusiva: facturasv2. No utilizar ni modificar otras bases.
+- Stack: PHP 8 plano, PDO, MySQL/MariaDB, Bootstrap 5 y jQuery.
+- No usar Composer, frameworks ni Node.js para la aplicación.
+- No usar subagentes.
+- Aplicación compatible con Apache + PHP 8 + MySQL 8 y MariaDB 10.4+.
+- URL local:
+  http://localhost/sistemas/factElectronica_saas/facturacion%20electronica/
+- Acceso demo de empresa:
+  Usuario: admin
+  Contraseña: Demo1234!
+  También puede entrar con el correo admin@facturasv.local.
+- Acceso demo de superadministrador:
+  Usuario: superadmin
+  Contraseña: SuperDemo1234!
+  También puede entrar con el correo superadmin@facturasv.local.
+- PHP CLI:
+  "C:\xampp\php\php.exe"
+- MySQL CLI:
+  "C:\xampp\mysql\bin\mysql.exe" -u root
+- Responder y mantener toda la interfaz en español.
+- Trabajamos módulo por módulo; el usuario valida antes de avanzar.
+
+INTERFAZ Y ACCESO
+
+- Login rediseñado con panel de marca, formulario moderno y logo de BissWeb
+  (assets/img/bissweb.jpg y su isotipo assets/img/bissweb-mark.jpg).
+- Permite entrar con usuario o correo electrónico; el correo solo se acepta si
+  identifica a una única cuenta activa.
+- Validación de formato del correo en vivo, botón para mostrar/ocultar la
+  contraseña y aviso de Bloq Mayús.
+- "Mantener sesión activa" crea una cookie HttpOnly de 30 días y regenera el ID
+  de sesión al entrar. La casilla viene desmarcada por seguridad; sin la opción,
+  la sesión termina al cerrar el navegador.
+- El servidor mantiene las sesiones con gc_maxlifetime de 30 días; la cookie es
+  la que decide si el navegador conserva la sesión.
+- El menú lateral muestra el sello "Desarrollado por BissWeb" y se modernizaron
+  topbar, tarjetas, botones, formularios, tablas, pestañas y modales.
+- SSO/OAuth, passkeys y magic links no están implementados: se muestran como
+  hoja de ruta y requieren backend/proveedor de identidad. No hay botones falsos.
+- El acceso conserva CSRF, bloqueo de intentos, regeneración de sesión y cookies
+  HttpOnly/SameSite=Lax, con Secure automático en HTTPS.
+
+MÓDULOS COMPLETADOS (1 AL 14)
+
+1. Base multiempresa y autenticación.
+2. Catálogos MH.
+3. Clientes.
+4. Productos y servicios.
+5. Emisión de documentos DTE (Factura 01 y CCF 03).
+6. Representación gráfica PDF.
+7. Dashboard, reportes y correo.
+8. Configuración (empresa, emisor, numeración, correo y consulta de usuarios).
+9. Contingencia (evento MH v4 y transmisión diferida).
+10. Tipos DTE 05, 06, 11 y 14.
+11. Superadministración centralizada de empresas y usuarios.
+12. Mi perfil (cambio de la propia contraseña).
+13. Contabilidad (catálogo de cuentas, asientos, libros, balanza y estados).
+14. Inventario básico:
+    - Existencias por producto calculadas como existencia base + movimientos.
+    - Movimientos manuales de entrada, salida, ajuste positivo y ajuste negativo.
+    - Kardex por producto con saldo inicial, movimientos y saldo final.
+    - Salidas automáticas al procesar DTE 01, 03, 06 y 11.
+    - Reposición automática al invalidar un DTE.
+    - Reconciliación de ventas procesadas desde la fecha de inicio del inventario.
+    - Alertas de stock negativo y lista de existencias por estado.
+    - Roles: ADMIN y VENDEDOR registran movimientos; CONTADOR solo consulta;
+      el superadministrador no entra al inventario de una empresa.
+    - No incluye compras, proveedores, costeo ni almacenes múltiples.
+
+REGLAS DTE Y FISCALES IMPORTANTES
+
+- Factura 01: precios con IVA incluido.
+- Crédito Fiscal 03: precios sin IVA.
+- Notas 05/06: el modo de IVA depende del documento relacionado; si es 01, incluye IVA;
+  si es 03, el IVA se agrega. Requieren un relacionado PROCESADA del mismo cliente.
+- Exportación 11: precios netos, sin IVA; el total incluye flete y seguro.
+- Sujeto Excluido 14: compra sin IVA; se descuenta la retención de renta.
+- CCF requiere cliente con NIT y correo electrónico.
+- 05, 06, 11 y 14 requieren cliente con NIT o DUI (no consumidor final).
+- Documentos y teléfonos se transmiten sin guiones.
+- Ítems hasta 8 decimales; resumen a 2 decimales.
+- El JSON CCF no admite totalIva ni reteRenta.
+- El conector actual es exclusivamente SIMULACION; no existe conexión MH real.
+- Establecimiento demo: M001P001. Zona horaria: America/El_Salvador.
+- El entorno PRODUCCION está bloqueado en Configuración hasta implementar MHClient.
+- El evento de contingencia usa ambiente 00 en simulación y 01 en producción.
+- tipoContingencia: 1 MH, 2 emisor, 3 Internet, 4 energía, 5 otro.
+- Para el tipo 5 el motivo es obligatorio (máximo 500 caracteres).
+- El evento admite como máximo 1000 DTE y solo incluye el tipo seleccionado.
+- Un DTE solo puede pertenecer a un evento de contingencia.
+
+INVENTARIO: REGLAS IMPLEMENTADAS
+
+- productos.stock es la existencia base; el stock actual se calcula como
+  existencia base + suma de movimientos (entradas y ajustes positivos suman;
+  salidas y ajustes negativos restan).
+- No se actualiza productos.stock con cada venta. Así, al eliminar un documento
+  sus movimientos se eliminan en cascada y el stock se restituye automáticamente.
+- Los DTE 01, 03, 06 y 11 descuentan existencias al pasar a PROCESADA.
+- Los DTE 05 (Nota de Crédito) y 14 (Sujeto Excluido) no mueven inventario;
+  una devolución física se registra como entrada manual.
+- La invalidación de un DTE genera una entrada por cada salida original.
+- Las ventas automáticas pueden dejar stock negativo para no bloquear el DTE;
+  la pantalla muestra una alerta y el estado NEGATIVO.
+- Las salidas y ajustes negativos manuales no pueden dejar stock negativo.
+- Los movimientos manuales exigen fecha no futura, cantidad positiva con hasta
+  4 decimales y motivo entre 3 y 200 caracteres.
+- El control de existencias y la existencia base se definen al crear el producto;
+  en edición el campo se deshabilita y los cambios se hacen desde Inventario.
+- La reconciliación solo procesa documentos con procesado_at desde la fecha de
+  inicio del inventario; no reconstruye ventas anteriores a la activación.
+- No hay almacenes múltiples: cada producto tiene una sola ubicación lógica.
+- No hay costeo ni valorización: solo cantidades.
+
+CONTABILIDAD: REGLAS IMPLEMENTADAS
+
+- Cada asiento se guarda con total_debe = total_haber y al menos dos partidas.
+- Una partida debe tener debe o haber, nunca ambos y nunca ambos en cero.
+- No se permiten cuentas inactivas ni cuentas que no admitan movimientos.
+- El código de una cuenta no se puede cambiar después de crearla.
+- Una cuenta con movimientos no se puede desactivar ni cambiar de tipo o naturaleza.
+- Una cuenta usada en la configuración automática no se puede desactivar.
+- Un asiento manual se anula cambiando su estado a ANULADO y queda auditado.
+- Un asiento automático no se anula desde la interfaz: se revierte invalidando el DTE.
+- Los asientos anulados no se incluyen en libros, balanza ni estados financieros.
+- El asiento automático es idempotente por (tenant_id, documento_id, tipo).
+- Si falla la contabilidad, el DTE ya procesado no se revierte; queda pendiente y se
+  puede regenerar con "Generar asientos".
+- El balance general suma el resultado del ejercicio calculado al patrimonio, porque
+  el sistema todavía no genera asientos de cierre.
+- No hay cierre de periodos: queda pendiente para una etapa posterior.
+
+ARCHIVOS PRINCIPALES
+
+Módulos 1-4:
+- lib/auth.php, lib/db.php, lib/helpers.php, lib/bootstrap.php
+- lib/catalogos.php, lib/clientes.php, lib/productos.php
+- api/auth.php, api/catalogos.php, api/clientes.php, api/productos.php
+- views/login.php, views/dashboard.php, views/clientes.php, views/productos.php,
+  views/catalogos.php
+
+Módulo 5:
+- lib/documentos.php, lib/dte-builder.php, lib/json-schema-validator.php
+- lib/mh-connector.php, lib/numero-letras.php
+- api/documentos.php, api/mh.php
+- views/nueva-factura.php, views/lista-documentos.php
+- assets/js/nueva-factura.js, assets/js/documentos.js
+
+Módulo 6:
+- lib/dte-pdf.php, lib/pdf-simple.php, lib/empresa.php
+- uploads/logos/ (logo demo y .htaccess que bloquea scripts)
+
+Módulo 7:
+- lib/correo.php, lib/reportes.php
+- api/reportes.php
+- views/dashboard.php, views/reportes.php
+- assets/js/dashboard.js, assets/js/reportes.js
+
+Módulo 8:
+- lib/configuracion.php
+- api/configuracion.php
+- views/configuracion.php
+- assets/js/configuracion.js
+
+Módulo 9:
+- lib/contingencia.php
+- api/contingencia.php
+- views/contingencia.php
+- assets/js/contingencia.js
+- database/migrations/011_contingencia.sql
+
+Módulo 10:
+- lib/dte-builder-modulo10.php
+- database/migrations/012_modulo10_tipos_dte.sql
+- documentacion-mh/fe-nc-v4.json, fe-nd-v4.json, fe-fex-v3.json, fe-fse-v2.json
+- assets/js/nueva-factura.js (relacionado, exportación y sujeto excluido)
+- lib/dte-pdf.php (columnas y resumen por tipo)
+
+Módulo 11:
+- lib/superadmin.php
+- api/superadmin.php
+- views/superadmin.php
+- assets/js/superadmin.js
+- database/migrations/013_superadmin.sql
+- views/login.php, views/registro.php (registro cerrado)
+- lib/auth.php (sesión y roles globales)
+
+Módulo 12:
+- lib/perfil.php
+- api/perfil.php
+- views/perfil.php
+- assets/js/perfil.js
+- views/partials/sidebar.php (enlace Mi perfil)
+- views/superadmin.php (enlace Mi perfil)
+
+Módulo 13:
+- lib/contabilidad.php
+- api/contabilidad.php
+- views/contabilidad.php
+- assets/js/contabilidad.js
+- database/migrations/014_contabilidad.sql
+- lib/documentos.php (asiento automático al procesar y contra-asiento al invalidar)
+- lib/superadmin.php (catálogo contable al crear una empresa)
+- views/partials/sidebar.php (enlace Contabilidad)
+- assets/css/app.css (estilos del módulo 13)
+
+Módulo 14:
+- lib/inventario.php
+- api/inventario.php
+- views/inventario.php
+- assets/js/inventario.js
+- database/migrations/015_inventario.sql
+- lib/documentos.php (salida automática al procesar y reposición al invalidar)
+- api/productos.php y assets/js/productos.js (stock calculado y campos bloqueados en edición)
+- lib/superadmin.php (configuración de inventario al crear una empresa)
+- views/partials/sidebar.php (enlace Inventario)
+- assets/css/app.css (estilos del módulo 14)
+
+Compartidos:
+- views/partials/head.php, sidebar.php, footer.php
+- assets/css/app.css, assets/js/app.js, assets/js/masks.js
+- assets/img/bissweb.jpg, assets/img/bissweb-mark.jpg
+- views/login.php, assets/js/login.js
+- lib/auth.php, lib/bootstrap.php, api/auth.php
+- config/config.php
+- config/correo.local.example.php (plantilla; el archivo real está en .gitignore)
+- config/.htaccess (deniega acceso web a config/)
+
+BASE DE DATOS
+
+- Base: facturasv2; schema_versions en versión 15.
+- Migraciones aplicadas:
+  database/migrations/006_documentos.sql
+  database/migrations/007_catalogos_oficiales.sql
+  database/migrations/008_clientes_sin_documento_logo.sql
+  database/migrations/009_correo_documentos.sql
+  database/migrations/010_configuracion.sql
+  database/migrations/011_contingencia.sql
+  database/migrations/012_modulo10_tipos_dte.sql
+  database/migrations/013_superadmin.sql
+  database/migrations/014_contabilidad.sql
+  database/migrations/015_inventario.sql
+- database/schema.sql y database/seed.sql actualizados.
+- La importación limpia de schema.sql + seed.sql fue verificada en una base temporal:
+  30 tablas, versión 15, usuarios admin y superadmin, y 2 productos con stock.
+- Tablas nuevas del módulo 14:
+  inventario_config e inventario_movimientos.
+- inventario_movimientos.documento_id es FK a documentos con ON DELETE CASCADE:
+  al eliminar físicamente un documento se eliminan sus movimientos y el stock
+  calculado vuelve a su valor anterior.
+- Estado de datos demo al cierre del módulo 14:
+  - 1 tenant (Empresa Demo), 2 usuarios: admin (ADMIN, tenant 1) y superadmin
+    (SUPERADMIN, sin tenant).
+  - 5 documentos: ids 7, 8, 14, 40 y 85; dos invalidados y tres procesados.
+  - 0 eventos de contingencia.
+  - 28 cuentas contables, 1 configuración contable y 7 asientos (5 ventas y
+    2 contra-asientos de invalidación).
+  - 2 productos con control de existencias: PROD-001 con 12 unidades y
+    PROD-002 con 50 unidades; sin movimientos de inventario.
+  - Fecha de inicio del inventario: fecha de activación del módulo.
+  - Correlativos DTE: 01 = 5, 03 = 4, 05/06/11/14 = 0.
+  - Secuencia contable: 7.
+  - Logo: uploads/logos/demo.jpg.
+  - No hay usuarios, documentos, empresas, catálogos, movimientos ni correos
+    temporales de pruebas.
+  - La contraseña de admin quedó restaurada a Demo1234! tras las pruebas.
+  - configuracion_cambios conserva 2 registros legítimos de la sincronización
+    inicial de invalidaciones; no hay cambios temporales de pruebas.
+
+CORREO
+
+- Configuración actual: transporte simulado. El proyecto ya no incluye
+  credenciales SMTP en config/correo.local.php.
+- Para usar Mailtrap, cree config/correo.local.php a partir de
+  config/correo.local.example.php (está en .gitignore) o defina MAIL_* en el
+  servidor. Rote cualquier credencial que se haya compartido.
+- Mailtrap Sandbox: sandbox.smtp.mailtrap.io, puerto 587, TLS. Los correos se
+  capturan en la bandeja y no llegan a los clientes.
+- Envío real: dominio propio verificado en Mailtrap y token de API;
+  host live.smtp.mailtrap.io, puerto 587, usuario "api", contraseña = token.
+- El plan Sandbox limita correos por segundo; puede responder 550 Too many emails per second.
+- No publicar ni compartir config/correo.local.php; config/ está bloqueado por
+  .htaccess y el archivo está incluido en .gitignore.
+- Al procesar un evento de contingencia, cada DTE transmitido dispara el correo automático
+  del módulo 7; un fallo de correo no revierte el DTE.
+- Los DTE 05, 06, 11 y 14 usan el mismo envío automático al procesarse.
+
+DOCUMENTACIÓN LOCAL
+
+La carpeta documentacion-mh/ contiene los originales y tiene acceso web denegado:
+- fe-f-v2.json
+- fe-ccf-v4.json
+- fe-nc-v4.json
+- fe-nd-v4.json
+- fe-fex-v3.json
+- fe-fse-v2.json
+- invalidacion-schema-v3.json
+- contingencia-schema-v4.json
+- Catálogos oficiales XLSX/PDF
+- Manuales funcionales del MH (el manual técnico de integración real queda pendiente)
+
+MANUAL DE USUARIO
+
+- docs/manual/manual_usuario_facturasv_v2.pdf (30 páginas, portada BissWeb, capturas y ticket)
+- docs/manual/manual_usuario_facturasv.docx (editable)
+- docs/manual/manual_usuario_facturasv.md (fuente)
+- docs/manual/build_manual.py y docs/manual/img/ (generación y recursos)
+- contexto_actual.txt (estado global y decisión pendiente del modo interno)
+- Cubre módulos 1 al 14, roles, DTE, ticket térmico 58/80 mm, contabilidad,
+  inventario, seguridad, solución de problemas, glosario y anexos; cita las
+  601 comprobaciones. Ver contexto_ticket.txt.
+
+La carpeta svfe-json-schemas/ contiene además esquemas para 04, 07, 08, 09, 15, 17 y 18.
+La especificación original está en especificacion-proyecto.txt.
+
+PRUEBAS
+
+Comandos (desde la raíz del proyecto, con Apache y MySQL activos):
+  php tests/module5-smoke.php
+  php tests/module5-http.php
+  php tests/module6-pdf.php
+  php tests/module6-http.php
+  php tests/module7-smoke.php
+  php tests/module7-smtp.php
+  php tests/module7-http.php
+  php tests/module8-smoke.php
+  php tests/module8-http.php
+  php tests/module9-smoke.php
+  php tests/module9-http.php
+  php tests/module10-smoke.php
+  php tests/module10-http.php
+  php tests/module11-smoke.php
+  php tests/module11-http.php
+  php tests/module12-smoke.php
+  php tests/module12-http.php
+  php tests/module13-smoke.php
+  php tests/module13-http.php
+  php tests/module14-smoke.php
+  php tests/module14-http.php
+
+Resultado al cierre del módulo 14: 571 comprobaciones correctas.
+
+La extensión de impresión de tickets suma 30 comprobaciones (16 smoke y 14
+HTTP) y deja la suite en 601. Ver contexto_ticket.txt.
+- module5-smoke: 20
+- module5-http: 15
+- module6-pdf: 33
+- module6-http: 16
+- module7-smoke: 46
+- module7-smtp: 11
+- module7-http: 27
+- module8-smoke: 32
+- module8-http: 27
+- module9-smoke: 31
+- module9-http: 23
+- module10-smoke: 38
+- module10-http: 29
+- module11-smoke: 21
+- module11-http: 23
+- module12-smoke: 6
+- module12-http: 13
+- module13-smoke: 62
+- module13-http: 34
+- module14-smoke: 37
+- module14-http: 27
+
+Notas de las pruebas:
+- module14-smoke valida existencias calculadas, movimientos manuales, rechazo de
+  salidas sin stock, kardex, descuento automático de ventas, idempotencia, stock
+  negativo, reposición por invalidación, reconciliación, pendientes, cascada y CSV.
+- module14-http valida página, API, CSRF, movimientos, permisos ADMIN/VENDEDOR/
+  CONTADOR/SUPERADMIN, stock calculado en Productos y CSV.
+- module11-smoke comprueba que una empresa nueva nace con su catálogo contable
+  y su configuración de inventario.
+- module11-http comprueba el login por correo y la cookie de sesión persistente,
+  además de la gestión global de empresas y usuarios.
+- Algunas pruebas necesitan permisos de escritura en subcarpetas; si se ejecutan en
+  un entorno confinado, ejecutarlas con acceso completo (por ejemplo module5-http,
+  module6-pdf y las que guardan cookies en tests/).
+- Sintaxis PHP y JavaScript validada. La interfaz del módulo 14 se revisó con
+  Chrome headless: resumen, existencias, movimientos, kardex y modal de movimiento
+  cargan sin errores de JavaScript. También se revisaron el login de escritorio y
+  móvil, el dashboard, contabilidad, inventario, productos y el menú móvil; el
+  logo de BissWeb carga y no hay desbordes horizontales.
+- Conviene una revisión visual final en Chrome antes de publicar.
+
+PENDIENTES Y SIGUIENTE TRABAJO
+
+1. Integración real con el Ministerio de Hacienda:
+   - Implementar MHClient con MHConnectorInterface (firma real, transmisión, consulta,
+     invalidación y eventos de contingencia) cuando el usuario entregue endpoints y
+     credenciales.
+   - Habilitar el entorno PRODUCCION solo después de eso.
+2. Inventario (mejoras):
+   - Compras y proveedores con IVA crédito.
+   - Costeo promedio ponderado o PEPS y valorización.
+   - Almacenes múltiples y transferencias.
+   - Alertas de stock mínimo y puntos de reorden.
+   - Importación de conteos físicos.
+3. Contabilidad (mejoras):
+   - Cierre y reapertura de periodos contables.
+   - Contabilización automática de compras y libro de IVA compras.
+   - Estado de flujo de efectivo y notas a los estados financieros.
+   - Asientos de apertura y de cierre del ejercicio.
+4. Superadministración (mejoras):
+   - Editar los datos fiscales de una empresa desde el panel global.
+   - Auditoría global de acciones del superadministrador.
+   - Invitaciones por correo y verificación de correo.
+   - Segundo superadministrador y recuperación de acceso.
+5. Perfil (mejoras):
+   - Historial de cambios de contraseña.
+   - Cerrar las demás sesiones al cambiar la contraseña.
+   - Recuperación por correo.
+6. Tipos DTE adicionales:
+   - svfe-json-schemas/ incluye 04, 07, 08, 09, 15, 17 y 18; no están en el menú.
+7. Código QR del DTE, envío de correo asíncrono y mejoras de reportes.
+8. Operación: HTTPS, respaldos, monitoreo y cambio de credenciales demo.
+9. Autenticación avanzada:
+   - Magic links por correo con tokens de un solo uso.
+   - Passkeys/WebAuthn.
+   - SSO/OAuth corporativo (Google, Microsoft o SAML) con verificación de dominio.
+   - Alertas de inicio de sesión desde ubicaciones inusuales.
+
+SEGURIDAD IMPLEMENTADA
+
+- Contraseñas con password_hash() y password_verify(), con rehash automático.
+- PDO con sentencias preparadas; aislamiento por tenant en cada consulta.
+- CSRF en formularios y en cada POST; sesión regenerada al iniciar y al cambiar contraseña.
+- Login con usuario o correo; el correo se acepta solo si identifica a una cuenta activa única.
+  "Mantener sesión activa" usa una cookie HttpOnly de 30 días, regenera el ID de sesión
+y viene desmarcada por seguridad.
+- Bloqueo temporal de intentos fallidos.
+- Escape de salida HTML y construcción segura del DOM.
+- CSP, X-Frame-Options, X-Content-Type-Options y Referrer-Policy.
+- Autorización por rol en pantalla y API.
+- Superadministrador separado de las sesiones de empresa; panel y API global protegidos.
+- Registro público deshabilitado en pantalla y endpoint.
+- Gestión de usuarios centralizada en el superadministrador; ADMIN de empresa en solo lectura.
+- Mi perfil solo cambia la propia contraseña; exige la actual, CSRF, fortaleza, no reutilización
+  y auditoría. No acepta un id de usuario ni permite cambiar datos personales.
+- Contabilidad: roles ADMIN/CONTADOR, CSRF, validación de cuentas activas y de movimiento,
+  partida doble obligatoria, aislamiento por empresa y auditoría de anulaciones y configuración.
+- Inventario: roles ADMIN/VENDEDOR/CONTADOR, CSRF, aislamiento por empresa, validación de
+  producto con control, fecha, cantidad y motivo, bloqueo de salidas manuales sin stock,
+  stock calculado desde movimientos y auditoría de movimientos manuales.
+- Correlativos con transacción y FOR UPDATE.
+- Validación de entradas y de los JSON contra los esquemas MH 01/03/05/06/11/14.
+- Documento relacionado validado por empresa, cliente, tipo y estado PROCESADA.
+- Campos de exportación y retención de renta validados antes de guardar.
+- Logos validados y normalizados; scripts bloqueados en uploads.
+- Correos con remitentes/destinatarios validados y sin inyección de cabeceras.
+- Credenciales SMTP fuera de la base de datos y de la auditoría.
+- config/ y lib/ bloqueados desde el navegador por .htaccess.

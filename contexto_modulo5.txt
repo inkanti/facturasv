@@ -1,0 +1,159 @@
+contexto
+
+NOTA: este archivo corresponde al cierre del módulo 5 y está desactualizado.
+El estado vigente del proyecto está en contexto_modulo8.txt.
+
+Estoy desarrollando FacturaSV, un SaaS multiempresa de facturación electrónica para El Salvador. Ya completamos los módulos 1 al 5 y quiero continuar con el módulo 6.
+
+ENTORNO Y RESTRICCIONES
+
+- Workspace:
+  C:\xampp\htdocs\sistemas\factElectronica_saas\facturacion electronica
+- Trabajar únicamente dentro de ese directorio.
+- Base de datos exclusiva: facturasv2. No utilizar ni modificar otras bases.
+- Stack: PHP 8 plano, PDO, MySQL/MariaDB, Bootstrap 5 y jQuery.
+- No usar Composer, frameworks ni Node.js para la aplicación.
+- No usar subagentes.
+- Aplicación compatible con Apache + PHP 8 + MySQL 8 y MariaDB.
+- URL local:
+  http://localhost/sistemas/factElectronica_saas/facturacion%20electronica/
+- Acceso demo:
+  Usuario: admin
+  Contraseña: Demo1234!
+- PHP CLI:
+  "/c/xampp/php/php.exe"
+- MySQL CLI:
+  "/c/xampp/mysql/bin/mysql.exe" -u root
+- Responder y mantener toda la interfaz en español.
+- Trabajamos módulo por módulo; el usuario valida antes de avanzar al siguiente.
+
+MÓDULOS COMPLETADOS
+
+1. Base multiempresa y autenticación:
+   - Inicio de sesión solo con usuario y contraseña, sin NIT.
+   - Roles ADMIN, VENDEDOR y CONTADOR.
+   - Sesiones, CSRF, password_hash, bloqueo de intentos y aislamiento por tenant.
+   - Campos obligatorios señalados.
+   - Máscaras NIT 0000-000000-000-0 y teléfono 0000-0000.
+
+2. Catálogos MH:
+   - Independientes por empresa.
+   - Administración, búsqueda, filtros y activación/desactivación.
+   - Unidades de medida y formas de pago corregidas con los catálogos oficiales.
+
+3. Clientes:
+   - CRUD, NIT/DUI, ubicación, búsqueda, paginación e importación/exportación CSV.
+   - Se corrigió la validación residual del NIT al activar/desactivar sin editar ese campo.
+
+4. Productos y servicios:
+   - CRUD, bienes/servicios, unidad MH, precio, tratamiento IVA y stock opcional.
+   - Permisos, CSRF, duplicados y aislamiento por empresa probados.
+
+5. Emisión de documentos DTE:
+   - Factura 01 y Comprobante de Crédito Fiscal 03.
+   - Los tipos 05, 06, 11 y 14 permanecen pendientes porque no tenemos sus esquemas oficiales.
+   - Borradores, edición y eliminación de borradores.
+   - Ítems dinámicos, cantidad, precio editable y descuento por línea.
+   - Contado/crédito con días, forma de pago y retención opcional de IVA del 1 %.
+   - Totales y monto en letras.
+   - Correlativos independientes por empresa, tipo y establecimiento.
+   - Número de control de 31 caracteres, por ejemplo:
+     DTE-01-M001P001-000000000000001
+   - UUID, JSON DTE, validación contra esquemas oficiales, firma simulada,
+     transmisión simulada, sello de 40 caracteres y consulta.
+   - Estados:
+     BORRADOR → EMITIDA → PROCESADA / RECHAZADA → INVALIDADA
+   - Historial de firma, transmisión, consulta e invalidación.
+   - Descarga JSON, reintento e invalidación por ADMIN.
+   - VENDEDOR crea y transmite; CONTADOR solo consulta y descarga.
+
+REGLAS DTE IMPORTANTES
+
+- Factura 01: precios con IVA incluido.
+- Crédito Fiscal 03: precios sin IVA.
+- En ambos resúmenes, la base gravada y el IVA se presentan separados.
+- CCF requiere cliente con NIT y correo electrónico; DUI no es válido.
+- Documentos y teléfonos se transmiten sin guiones.
+- Ítems hasta 8 decimales; resumen a 2 decimales.
+- El JSON CCF no admite totalIva ni reteRenta.
+- rete_renta se conserva únicamente como columna MySQL con valor 0.
+- El conector actual es exclusivamente SIMULACION; no existe conexión MH real.
+- Departamento 06 y municipio 04 del emisor están temporalmente fijos con TODO-MH;
+  serán configurables en el módulo 8.
+- Establecimiento demo: M001P001. Distrito emisor predeterminado: 14.
+
+ARCHIVOS PRINCIPALES DEL MÓDULO 5
+
+- lib/documentos.php
+- lib/dte-builder.php
+- lib/json-schema-validator.php
+- lib/mh-connector.php
+- lib/numero-letras.php
+- api/documentos.php
+- api/mh.php
+- views/nueva-factura.php
+- views/lista-documentos.php
+- assets/js/nueva-factura.js
+- assets/js/documentos.js
+- assets/css/app.css
+
+BASE DE DATOS
+
+- Migraciones aplicadas:
+  database/migrations/006_documentos.sql
+  database/migrations/007_catalogos_oficiales.sql
+- schema_versions está en versión 7.
+- database/schema.sql y database/seed.sql están actualizados.
+- Tablas nuevas:
+  documentos
+  documento_items
+  mh_transmissions_log
+- document_sequences administra los correlativos.
+- Actualmente no hay documentos, ítems, logs ni usuarios temporales de prueba.
+- Los correlativos demo 01 y 03 están en numero_actual = 0, por lo que el próximo será 1.
+
+DOCUMENTACIÓN LOCAL
+
+La carpeta documentacion-mh/ contiene los originales y tiene acceso web denegado:
+
+- fe-f-v2.json
+- fe-ccf-v4.json
+- invalidacion-schema-v3.json
+- contingencia-schema-v4.json
+- Catálogos oficiales XLSX/PDF
+- Manuales funcional y técnico
+
+La especificación original está en:
+- especificacion-proyecto.txt
+
+PRUEBAS
+
+- tests/module5-smoke.php:
+  21 comprobaciones de cálculos, esquemas, estados, correlativos,
+  transmisión, consulta e invalidación.
+- tests/module5-http.php:
+  15 comprobaciones de autenticación, CSRF, roles, descarga y aislamiento.
+  Requiere que exista previamente un documento procesado.
+- También se verificaron visualmente Factura y CCF desde el navegador.
+- Sintaxis PHP y JavaScript validada.
+- README.md actualizado con instalación, uso y pruebas.
+
+SIGUIENTE TRABAJO: MÓDULO 6
+
+Implementar la representación gráfica PDF del DTE, todavía no desarrollada:
+
+- Encabezado del emisor con espacio para logo, NIT, dirección y teléfono.
+- Datos del receptor.
+- Tipo de documento, número de control, código de generación,
+  fecha, sello de recepción y estado.
+- Tabla de ítems, descuentos y totales.
+- IVA, retenciones, total a pagar y monto en letras.
+- Código QR si la documentación disponible lo requiere.
+- Espacio de firma.
+- Descarga/impresión desde el detalle del documento.
+- Mantener aislamiento por tenant y permisos de lectura.
+- No modificar la estructura fiscal del JSON ya validada.
+- Probar PDF de Factura y CCF, incluidos documentos invalidados.
+
+Antes de modificar archivos, revisa el estado actual del proyecto y continúa
+directamente con el módulo 6, sin rehacer los módulos anteriores.

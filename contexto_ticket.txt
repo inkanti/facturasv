@@ -1,0 +1,69 @@
+IMPRESIÓN DE TICKETS (EXTENSIÓN DEL MÓDULO 6)
+
+Objetivo
+
+Permitir que un DTE procesado se imprima en una impresora térmica de 58 mm u
+80 mm, además del PDF tradicional. No crea documentos nuevos, no consume
+correlativos y no modifica el DTE.
+
+Flujo
+
+1. El usuario abre Documentos y pulsa Ticket, o entra al detalle y usa el
+   botón Ticket.
+2. views/ticket.php recibe id y formato (80 por defecto, 58 opcional).
+3. requireAuth() exige sesión; documentDetail() valida el tenant y el
+   documento.
+4. ticketDocumentData() rechaza borradores y documentos no procesados.
+   Permite PROCESADA e INVALIDADA; esta última se marca con una banda.
+5. La vista muestra empresa, NIT/NRC, dirección, teléfono, correo, tipo de
+   documento, número de control, fecha/hora, cliente, condición, forma de pago,
+   ítems, totales, IVA, retención, código de generación, sello y el código QR
+   de consulta. Para el comprobante interno (tipo IN) muestra la banda
+   COMPROBANTE INTERNO · NO FISCAL, no incluye código de generación, sello ni
+   QR fiscal, y cambia el aviso final.
+6. El botón Imprimir llama a window.print(); el CSS de impresión usa
+   @page size 80mm auto o 58mm auto y oculta la barra de herramientas.
+7. La barra permite cambiar entre 80 mm y 58 mm sin salir de la vista.
+
+Archivos
+
+- lib/ticket.php: formatos, importes, cantidades, línea, subtotal, cliente,
+  validación del documento, datos de la empresa/logo y QR en data URI PNG.
+- views/ticket.php: vista autónoma, sin sidebar, con barra de acciones,
+  hoja imprimible, marcas de invalidación/contingencia/comprobante interno y
+  aviso de simulación o de documento no fiscal.
+- assets/css/ticket.css: estilos de pantalla e impresión de 80 mm.
+- assets/css/ticket-58.css: ancho, tipografía y @page de 58 mm.
+- assets/js/ticket.js: botón Imprimir.
+- views/partials/head.php: soporte de $pageStyles para cargar CSS propio.
+- views/lista-documentos.php y assets/js/documentos.js: enlace Ticket en la
+  lista y en el detalle.
+- tests/ticket-smoke.php y tests/ticket-http.php.
+
+Permisos y seguridad
+
+- Todos los roles autenticados pueden consultar/imprimir tickets de su
+  empresa; documentDetail() aplica tenant_id.
+- No se permite imprimir borradores ni documentos en estado EMITIDA o
+  RECHAZADA; solo PROCESADA e INVALIDADA.
+- La vista escapa todos los datos con e().
+- No usa JavaScript inline; CSP permite solo assets/js/ticket.js.
+- No se agregó tabla ni columna para el ticket. Desde el módulo 15 el esquema
+  está en 16 por el modo de facturación, no por el ticket.
+
+Pruebas
+
+- ticket-smoke.php: 20 comprobaciones (formatos, importes, cantidades,
+  documento procesado, subtotal, invalidación, QR y documento inexistente).
+- ticket-http.php: 16 comprobaciones HTTP (sesión, 80 mm, 58 mm, empresa,
+  número de control, ítems, advertencia, QR decodificable, invalidación, 404 y enlace).
+- Total de la suite: 686 comprobaciones (incluye QR y módulo 15).
+
+Límites
+
+- El ticket es una representación adicional; no sustituye el PDF oficial del
+  DTE ni tiene validez fiscal en modo simulación. El ticket de un comprobante
+  interno tampoco es una factura.
+- El navegador y el controlador de la impresora deben respetar el tamaño de
+  papel configurado; se recomienda escala 100 %, sin encabezados ni pies.
+- No se implementa envío directo ESC/POS ni integración con cajón de dinero.

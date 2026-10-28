@@ -1,0 +1,277 @@
+contexto
+
+Estoy desarrollando FacturaSV, un SaaS multiempresa de facturación electrónica para El Salvador.
+Los módulos 1 al 9 están completos y probados. La contingencia ya está implementada en modo
+simulación; el siguiente trabajo es la integración real con el Ministerio de Hacienda y los tipos
+de DTE que aún no tienen esquema.
+
+ENTORNO Y RESTRICCIONES
+
+- Workspace:
+  C:\xampp\htdocs\sistemas\factElectronica_saas\facturacion electronica
+- Trabajar únicamente dentro de ese directorio.
+- Base de datos exclusiva: facturasv2. No utilizar ni modificar otras bases.
+- Stack: PHP 8 plano, PDO, MySQL/MariaDB, Bootstrap 5 y jQuery.
+- No usar Composer, frameworks ni Node.js para la aplicación.
+- No usar subagentes.
+- Aplicación compatible con Apache + PHP 8 + MySQL 8 y MariaDB 10.4+.
+- URL local:
+  http://localhost/sistemas/factElectronica_saas/facturacion%20electronica/
+- Acceso demo:
+  Usuario: admin
+  Contraseña: Demo1234!
+- PHP CLI:
+  "C:\xampp\php\php.exe"
+- MySQL CLI:
+  "C:\xampp\mysql\bin\mysql.exe" -u root
+- Responder y mantener toda la interfaz en español.
+- Trabajamos módulo por módulo; el usuario valida antes de avanzar.
+
+MÓDULOS COMPLETADOS (1 AL 9)
+
+1. Base multiempresa y autenticación.
+2. Catálogos MH.
+3. Clientes.
+4. Productos y servicios.
+5. Emisión de documentos DTE (Factura 01 y CCF 03).
+6. Representación gráfica PDF.
+7. Dashboard, reportes y correo.
+8. Configuración (empresa, emisor, numeración, usuarios y correo).
+9. Contingencia:
+   - Emisión en contingencia con tipoOperacion = 2, tipoContingencia 1-5 y motivoContin.
+   - El DTE queda en estado EMITIDA, sin sello y sin transmisión; el PDF lo marca
+     como EMITIDO EN CONTINGENCIA.
+   - Evento de contingencia del esquema oficial v4:
+     identificacion, emisor, detalleDTE (1 a 1000) y motivo.
+   - Agrupación de DTE pendientes por periodo (fechas y horas), tipo, responsable y
+     tipo de establecimiento.
+   - Validación contra documentacion-mh/contingencia-schema-v4.json.
+   - Firma y transmisión simuladas; sello del evento de 40 caracteres y log CONTINGENCIA.
+   - Al procesar el evento, se transmiten (simulación) los DTE pendientes y pasan a PROCESADA
+     con su propio sello; se envía el correo al cliente si corresponde.
+   - Reintento del evento rechazado y de los documentos pendientes de un evento procesado.
+   - Pantalla Contingencia con listado, alta, detalle, JSON, PDF y reintento.
+   - Permisos: ADMIN declara eventos; ADMIN y VENDEDOR emiten en contingencia;
+     CONTADOR consulta y descarga.
+   - No se puede transmitir manualmente un DTE en contingencia sin evento procesado.
+
+REGLAS DTE Y FISCALES IMPORTANTES
+
+- Factura 01: precios con IVA incluido.
+- Crédito Fiscal 03: precios sin IVA.
+- En ambos resúmenes, la base gravada y el IVA se presentan separados.
+- CCF requiere cliente con NIT y correo electrónico; DUI o sin documento no es válido.
+- Documentos y teléfonos se transmiten sin guiones.
+- Ítems hasta 8 decimales; resumen a 2 decimales.
+- El JSON CCF no admite totalIva ni reteRenta.
+- rete_renta se conserva únicamente como columna MySQL con valor 0.
+- El conector actual es exclusivamente SIMULACION; no existe conexión MH real.
+- Departamento y municipio del emisor ya son configurables (módulo 8); valores
+  iniciales 06 y 04. El distrito del emisor se guarda por documento.
+- Establecimiento demo: M001P001. Zona horaria: America/El_Salvador.
+- El número de control depende de empresa + tipo + establecimiento.
+- Cambiar el establecimiento crea series nuevas; los documentos anteriores
+  conservan su número de control.
+- El entorno PRODUCCION está bloqueado en Configuración hasta implementar MHClient.
+- El evento de contingencia usa ambiente 00 en simulación y 01 en producción.
+- tipoContingencia: 1 MH, 2 emisor, 3 Internet, 4 energía, 5 otro.
+- Para el tipo 5 el motivo es obligatorio (máximo 500 caracteres).
+- El evento admite como máximo 1000 DTE.
+- El evento incluye solo los DTE del tipo de contingencia seleccionado; los demás quedan
+  pendientes para otro evento.
+- Un DTE solo puede pertenecer a un evento de contingencia.
+- El evento y los DTE se transmiten con sellos independientes.
+
+ARCHIVOS PRINCIPALES
+
+Módulo 1-4:
+- lib/auth.php, lib/db.php, lib/helpers.php, lib/bootstrap.php
+- lib/catalogos.php, lib/clientes.php, lib/productos.php
+- api/auth.php, api/catalogos.php, api/clientes.php, api/productos.php
+- views/login.php, views/registro.php, views/clientes.php, views/productos.php,
+  views/catalogos.php, views/dashboard.php
+
+Módulo 5:
+- lib/documentos.php, lib/dte-builder.php, lib/json-schema-validator.php
+- lib/mh-connector.php, lib/numero-letras.php
+- api/documentos.php, api/mh.php
+- views/nueva-factura.php, views/lista-documentos.php
+- assets/js/nueva-factura.js, assets/js/documentos.js
+
+Módulo 6:
+- lib/dte-pdf.php, lib/pdf-simple.php, lib/empresa.php
+- uploads/logos/ (logo demo y .htaccess que bloquea scripts)
+
+Módulo 7:
+- lib/correo.php, lib/reportes.php
+- api/reportes.php
+- views/dashboard.php, views/reportes.php
+- assets/js/dashboard.js, assets/js/reportes.js
+
+Módulo 8:
+- lib/configuracion.php
+- api/configuracion.php
+- views/configuracion.php
+- assets/js/configuracion.js
+
+Módulo 9:
+- lib/contingencia.php
+- api/contingencia.php
+- views/contingencia.php
+- assets/js/contingencia.js
+- database/migrations/011_contingencia.sql
+
+Compartidos:
+- views/partials/head.php, sidebar.php, footer.php
+- assets/css/app.css, assets/js/app.js, assets/js/masks.js
+- config/config.php
+- config/correo.local.php (credenciales SMTP; no compartir)
+- config/.htaccess (deniega acceso web a config/)
+
+BASE DE DATOS
+
+- Base: facturasv2; schema_versions en versión 11.
+- Migraciones aplicadas:
+  database/migrations/006_documentos.sql
+  database/migrations/007_catalogos_oficiales.sql
+  database/migrations/008_clientes_sin_documento_logo.sql
+  database/migrations/009_correo_documentos.sql
+  database/migrations/010_configuracion.sql
+  database/migrations/011_contingencia.sql
+- database/schema.sql y database/seed.sql actualizados.
+- La importación limpia de schema.sql fue verificada en una base temporal:
+  23 tablas y versión 11.
+- Tablas nuevas del módulo 9:
+  eventos_contingencia, evento_contingencia_documentos.
+- documentos agrega: tipo_operacion, tipo_contingencia, motivo_contingencia y
+  contingencia_evento_id.
+- mh_transmissions_log: documento_id ahora nullable, agrega
+  evento_contingencia_id y la acción CONTINGENCIA.
+- Estados de documentos sin cambios: BORRADOR, EMITIDA, PROCESADA, RECHAZADA, INVALIDADA.
+  Un DTE en contingencia permanece EMITIDA hasta que su evento se procesa.
+- Estado de datos demo al cierre del módulo 9:
+  - 1 tenant, 1 usuario (admin), 6 clientes, 5 productos.
+  - 5 documentos: ids 7, 8, 14, 40 y 85; dos invalidados y tres procesados.
+  - 0 eventos de contingencia y 0 detalles de evento.
+  - 8 ítems de documento, 2 registros de correo ENVIADO.
+  - Correlativos: 01 = 5, 03 = 4, 05/06/11/14 = 0.
+  - Logo: uploads/logos/demo.jpg.
+  - configuracion_cambios vacía.
+  - No hay usuarios, documentos, ítems, logs, eventos ni correos temporales de pruebas.
+- Las pruebas restauran correlativos, configuración, empresa y usuarios; conservan
+  los documentos existentes.
+
+CORREO
+
+- Configuración actual: Mailtrap Sandbox en config/correo.local.php
+  (sandbox.smtp.mailtrap.io, puerto 587, TLS).
+- Es una bandeja de pruebas: los correos se capturan en Mailtrap y no llegan a los clientes.
+- Envío real pendiente: dominio propio verificado en Mailtrap y token de API;
+  host live.smtp.mailtrap.io, puerto 587, usuario "api", contraseña = token.
+- El plan Sandbox limita correos por segundo; puede responder
+  550 Too many emails per second. El sistema lo registra como ERROR.
+- No publicar ni compartir config/correo.local.php; está protegido por config/.htaccess.
+- Al procesar un evento de contingencia, cada DTE transmitido dispara el correo
+  automático del módulo 7; un fallo de correo no revierte el DTE.
+
+DOCUMENTACIÓN LOCAL
+
+La carpeta documentacion-mh/ contiene los originales y tiene acceso web denegado:
+- fe-f-v2.json
+- fe-ccf-v4.json
+- invalidacion-schema-v3.json
+- contingencia-schema-v4.json
+- Catálogos oficiales XLSX/PDF
+- Manuales funcional y técnico
+
+La especificación original está en:
+- especificacion-proyecto.txt
+
+PRUEBAS
+
+Comandos (desde la raíz del proyecto, con Apache y MySQL activos):
+  php tests/module5-smoke.php
+  php tests/module5-http.php
+  php tests/module6-pdf.php
+  php tests/module6-http.php
+  php tests/module7-smoke.php
+  php tests/module7-smtp.php
+  php tests/module7-http.php
+  php tests/module8-smoke.php
+  php tests/module8-http.php
+  php tests/module9-smoke.php
+  php tests/module9-http.php
+
+Resultado al cierre del módulo 9: 286 comprobaciones correctas.
+- module5-smoke: 20
+- module5-http: 15
+- module6-pdf: 33
+- module6-http: 16
+- module7-smoke: 46
+- module7-smtp: 11
+- module7-http: 27
+- module8-smoke: 32
+- module8-http: 32
+- module9-smoke: 31
+- module9-http: 23
+
+Notas de las pruebas:
+- module5-smoke, module6-pdf, module7-smoke, module8-smoke y module9-smoke fuerzan
+  el correo simulado para no enviar correos reales; module7-http usa un cliente sin correo.
+- module7-smtp levanta un servidor SMTP local en 127.0.0.1 y no envía a Internet.
+- module5-http requiere que exista al menos un documento procesado.
+- module6-pdf escribe un logo temporal en uploads/logos.
+- module9-http crea un DTE en contingencia y un evento, y los elimina al finalizar.
+- Algunas pruebas necesitan permisos de escritura en subcarpetas; si se ejecutan en un
+  entorno confinado, ejecutarlas con acceso completo.
+- Sintaxis PHP y JavaScript validada. La pantalla de contingencia se revisó con Chrome
+  headless: carga, listado y ausencia de errores de JavaScript. Conviene una revisión
+  visual final en Chrome antes de publicar.
+
+PENDIENTES Y SIGUIENTE TRABAJO
+
+1. Integración real con el Ministerio de Hacienda:
+   - Implementar MHClient con MHConnectorInterface (firma real, transmisión, consulta,
+     invalidación y eventos de contingencia) cuando el usuario entregue endpoints y
+     credenciales.
+   - El método pendiente es transmitirEventoContingencia(); el mock ya lo implementa.
+   - Habilitar el entorno PRODUCCION en Configuración solo después de eso.
+2. Tipos DTE 05, 06, 11 y 14:
+   - No se generan hasta contar con sus esquemas oficiales.
+   - Requieren cálculo, JSON, PDF y pruebas propias.
+3. Código QR del DTE:
+   - No se incorpora porque la documentación disponible no lo exige para la
+     representación gráfica en modo simulación; evaluar con manuales de producción.
+4. Envío de correo:
+   - El envío es síncrono; evaluar cola/diferido y reintentos con espera para
+     límites del proveedor.
+   - Configurar dominio y token para envío real a clientes.
+5. Contingencia en producción:
+   - Validar con el manual técnico el orden exacto de transmisión evento/DTE y las
+     reglas de plazo (24 horas) antes de conectar el MH real.
+   - Evaluar si el evento rechazado debe permitir editar el periodo o crear uno nuevo.
+6. Operación:
+   - HTTPS, permisos de escritura solo en uploads/logos/, respaldos, monitoreo.
+   - Documentar variables de entorno de producción.
+7. Mejoras posibles:
+   - Eliminar usuarios (hoy solo se desactivan) con reglas de integridad.
+   - Administrar más de un establecimiento desde la interfaz.
+   - Filtros adicionales en reportes y dashboard.
+   - Notificaciones o auditoría de emisiones.
+
+SEGURIDAD IMPLEMENTADA
+
+- Contraseñas con password_hash() y password_verify(), con rehash automático.
+- PDO con sentencias preparadas; aislamiento por tenant en cada consulta.
+- CSRF en formularios y en cada POST; sesión regenerada al iniciar.
+- Bloqueo temporal de intentos fallidos.
+- Escape de salida HTML y construcción segura del DOM.
+- CSP, X-Frame-Options, X-Content-Type-Options y Referrer-Policy.
+- Autorización por rol en pantalla y API (Configuración y eventos de contingencia solo ADMIN).
+- Correlativos con transacción y FOR UPDATE.
+- Validación de entradas y de los JSON contra los esquemas MH.
+- Evento de contingencia validado contra el esquema v4 antes de guardarse y transmitirse.
+- Logos validados y normalizados; scripts bloqueados en uploads.
+- Correos con remitentes/destinatarios validados y sin inyección de cabeceras.
+- Credenciales SMTP fuera de la base de datos y de la auditoría.
+- config/ y lib/ bloqueados desde el navegador por .htaccess.

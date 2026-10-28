@@ -1,0 +1,14 @@
+Módulos 1 al 14 terminados. Incluye impresión de tickets de 58/80 mm.
+
+Contexto de traspaso:
+- contexto_actual.txt
+
+Manual de usuario:
+- docs/manual/manual_usuario_facturasv_v2.pdf
+- docs/manual/manual_usuario_facturasv.docx
+- docs/manual/manual_usuario_facturasv.md
+
+Contexto del ticket:
+- contexto_ticket.txt
+
+Estado verificado: 601 comprobaciones correctas.

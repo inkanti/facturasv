@@ -1,0 +1,336 @@
+CONTEXTO ACTUAL DE FACTURASV — TRASPASO PARA CONTINUAR EN OTRO CHAT
+
+Fecha de este corte: 27 de octubre de 2026 (America/El_Salvador)
+Desarrollador: BissWeb — Impulso Digital
+Proyecto: FacturaSV, SaaS multiempresa de facturación electrónica para El Salvador.
+
+1. UBICACIÓN Y ENTORNO
+
+Raíz:
+C:\xampp\htdocs\sistemas\factElectronica_saas\facturacion electronica
+
+URL local:
+http://localhost/sistemas/factElectronica_saas/facturacion%20electronica/
+
+Stack:
+- PHP 8.2, PDO con consultas preparadas, MySQL/MariaDB, Apache/XAMPP.
+- Bootstrap 5.3.3 y jQuery locales. Sin Composer, sin Node.js para la aplicación.
+- Base de datos: facturasv2.
+- PHP CLI: C:\xampp\php\php.exe
+- MySQL CLI: C:\xampp\mysql\bin\mysql.exe -u root
+- Zona horaria de la empresa: America/El_Salvador.
+- Moneda: USD.
+
+Credenciales demo:
+- Empresa: admin / Demo1234! o admin@facturasv.local
+- Superadministrador: superadmin / SuperDemo1234! o superadmin@facturasv.local
+- Además existe un usuario creado manualmente: contador / contador@gmail.com (CONTADOR, activo). No eliminarlo sin consultar.
+
+2. ESTADO FUNCIONAL
+
+Módulos 1 al 16 completos:
+1. Autenticación y sesión.
+2. Catálogos MH.
+3. Clientes.
+4. Productos.
+5. Emisión DTE (01 Factura, 03 CCF).
+6. Representación gráfica PDF.
+7. Correo, dashboard y reportes.
+8. Configuración de empresa, emisor, numeración, usuarios y correo.
+9. Contingencia.
+10. Tipos 05 Nota de Crédito, 06 Nota de Débito, 11 Exportación y 14 Sujeto Excluido.
+11. Superadministración global.
+12. Mi perfil y cambio de contraseña.
+13. Contabilidad por empresa.
+14. Inventario básico.
+15. Modo de facturación por empresa y comprobante interno.
+16. Código de barras por producto y escaneo en la factura.
+
+Extensiones del módulo 6:
+- Impresión de tickets térmicos de 58 mm y 80 mm.
+- PDF y ticket adaptados para el comprobante interno (módulo 15).
+- PDF rediseñado con el formato institucional del ejemplo `ejemplo.pdf` y código QR en PDF y ticket.
+
+Estado de datos actual (puede cambiar si el usuario sigue operando):
+- Esquema: 17.
+- Tablas: 30.
+- Documentos: 10 (5 del corte anterior más 5 emitidos por el usuario: 444 tipo 05, 487, 560 y 604 tipo 01, 578 tipo 06; 0 comprobantes internos).
+- Asientos contables: 12.
+- Movimientos de inventario: 2 (ventas de los documentos 560 y 578).
+- Usuarios: 3 (admin, superadmin y contador).
+- Auditoría: 3 registros (2 de invalidaciones y 1 de creación del contador).
+- Secuencia contable: 23.
+- Serie DTE 01: 8; serie DTE 06: 1.
+- Productos demo: PROD-001 con 12 unidades y PROD-002 con 50 unidades (el documento 560 pudo descontar existencias).
+- Empresas en modo interno: 0 (tenant 1 sigue en SIMULACION).
+
+3. MODO DE FACTURACIÓN POR EMPRESA (MÓDULO 15, IMPLEMENTADO)
+
+Decisión tomada con el usuario:
+- Modo por empresa (no mixto dentro de una empresa).
+- El comprobante interno genera asiento contable y movimiento de inventario.
+- Solo el SUPERADMIN cambia el modo; el ADMIN de la empresa solo lo consulta.
+
+Modelo:
+- tenant_config.modo_facturacion ENUM('INTERNO','SIMULACION','PRODUCCION') NOT NULL DEFAULT 'SIMULACION'.
+- Interruptor de comportamiento:
+  - INTERNO: solo se puede emitir tipo_dte = 'IN' (Comprobante interno).
+  - SIMULACION: solo los seis DTE históricos.
+  - PRODUCCION: bloqueado en la API y en la interfaz hasta que exista conexión real con Hacienda.
+- El modo no convierte documentos históricos: los comprobantes internos emitidos conservan su tipo IN y su serie aunque la empresa vuelva a SIMULACION.
+
+Comportamiento del comprobante interno (tipo IN):
+- Numeración propia: INT-000001 (prefijo configurable en Configuración → Numeración; tabla document_sequences con tipo IN).
+- Estados: BORRADOR → PROCESADA (sin paso EMITIDA ni transmisión) → INVALIDADA al anularlo.
+- No guarda codigo_generacion, sello_recepcion, firma_digital ni dte_json.
+- Los precios incluyen IVA, como la Factura; el IVA se calcula y muestra para control interno, sin retención de IVA.
+- Descuenta inventario de productos con control_stock y genera asiento tipo VENTA (caja/CxC, ventas gravadas/exentas/no sujetas, IVA débito).
+- No genera correo fiscal automático; la API rechaza el envío manual.
+- No se transmite al MH; la API y la función de transmisión lo bloquean.
+- Anulación interna: motivo obligatorio (5 a 200 caracteres), marca INVALIDADA, revierte inventario, genera contra-asiento y guarda un JSON de anulación propio (tipoEvento ANULACION_INTERNA). No hay evento MH.
+- PDF: caja "COMPROBANTE INTERNO / DOCUMENTO NO FISCAL", sin código de generación ni sello, pie y firma adaptados.
+- Ticket: marca "COMPROBANTE INTERNO · NO FISCAL" y aviso de que no es una factura.
+- Listado y detalle: sin acciones de JSON, consulta, transmisión ni correo; botón "Anular comprobante".
+- Configuración → Emisor muestra el modo como dato informativo (solo lectura).
+
+Cambio de modo:
+- Panel de superadministración → columna Modo → selector Interno / Simulación (confirmación).
+- También se puede elegir el modo al crear una empresa.
+- Cada cambio queda en configuracion_cambios con sección modo_facturacion.
+- API: POST api/superadmin.php action=company-billing-mode (solo SUPERADMIN, CSRF).
+
+Archivos principales del módulo 15:
+- database/migrations/016_modo_interno.sql
+- lib/dte-builder.php (definición IN y cálculo de totales)
+- lib/documentos.php (modo, validación, numeración, emisión y anulación internas)
+- lib/contabilidad.php (tipo IN → asiento VENTA y etiqueta)
+- lib/inventario.php (tipo IN en salidas y pendientes)
+- lib/configuracion.php (serie INT y modo en la configuración)
+- lib/superadmin.php y api/superadmin.php (cambio de modo)
+- lib/dte-pdf.php, lib/ticket.php y views/ticket.php (representaciones no fiscales)
+- views/nueva-factura.php, views/lista-documentos.php, views/superadmin.php, views/configuracion.php, views/dashboard.php
+- assets/js/nueva-factura.js, documentos.js, superadmin.js, configuracion.js
+- tests/modulo15-smoke.php y tests/modulo15-http.php
+
+Pruebas del módulo 15:
+- php tests/modulo15-smoke.php → 36 comprobaciones.
+- php tests/modulo15-http.php → 28 comprobaciones.
+- Cubren cambio de modo, bloqueo de PRODUCCION, rechazos cruzados, serie INT, ausencia de datos fiscales, IVA incluido, inventario, contabilidad, PDF/ticket, bloqueo de transmisión/correo/JSON, anulación, reversión y conservación del historial.
+
+3.1 PDF INSTITUCIONAL Y CÓDIGO QR (IMPLEMENTADO)
+
+Formato del PDF (lib/dte-pdf.php reescrito):
+- Tarjetas con borde azul (#1FA3FF) y esquinas redondeadas, siguiendo ejemplo.pdf.
+- Encabezado: logo, "DOCUMENTO TRIBUTARIO ELECTRÓNICO", tipo de documento, QR arriba a la derecha y datos en dos columnas (código de generación, número de control, sello, modelo, tipo de transmisión, fecha y hora).
+- Tarjetas separadas de emisor y receptor; tarjeta de documento relacionado para notas 05/06.
+- Tabla con encabezado gris (#D9D9D9) de dos líneas, filas sin bordes verticales y resumen alineado a la derecha con suma de ventas por tipo, descuentos, sub-total, IVA, IVA retenido, renta, monto total de la operación y total a pagar.
+- Tarjetas finales de valor en letras, condición, forma de pago, observaciones y responsables.
+- Se mantienen la marca de agua INVALIDADA, la etiqueta EMITIDO EN CONTINGENCIA, la paginación "Página X de Y", el logo del emisor y el pie de simulación.
+- El comprobante interno se titula "COMPROBANTE INTERNO / DOCUMENTO NO FISCAL" y no muestra QR fiscal.
+
+Código QR (lib/qr.php, PHP puro, sin librerías):
+- QR modelo 2, modo byte, corrección M, versiones 1 a 10, selección automática de versión y máscara.
+- Genera matriz, PNG (para el ticket) y píxeles en escala de grises (para el PDF).
+- Contenido: https://admin.factura.gob.sv/consultaPublica?ambiente=00|01&codGen=UUID&fechaEmi=YYYY-MM-DD
+- Ambiente 00 en SIMULACION y 01 en PRODUCCION; sin código de generación no hay QR (comprobante interno).
+- La matriz fue verificada contra BaconQrCode (implementación de referencia): coincide byte a byte para las versiones 1 a 10.
+- PDF: imagen /DeviceGray con FlateDecode a 74x74 pt. Ticket: PNG data URI de 36 mm (80 mm) o 28 mm (58 mm).
+- El PNG del ticket lleva un IHDR de 13 bytes y se valida con getimagesizefromstring y GD; un IHDR incompleto hacía que el navegador no mostrara el QR.
+- Soporte PDF nuevo: lib/pdf-simple.php agrega roundedRect() e imageGray().
+
+Archivos:
+- lib/qr.php
+- lib/dte-pdf.php (reescrito)
+- lib/pdf-simple.php (esquinas redondeadas e imágenes en escala de grises)
+- lib/ticket.php y views/ticket.php + assets/css/ticket.css
+- tests/qr-smoke.php, tests/ticket-smoke.php, tests/ticket-http.php, tests/module6-pdf.php y tests/module6-http.php
+
+Pruebas:
+- php tests/qr-smoke.php → 13 comprobaciones (matriz de referencia, PNG válido y decodificable con GD, URL y ambientes).
+- ticket-smoke → 20; ticket-http → 16.
+- module6-http → 17; module6-pdf suma una comprobación de QR.
+
+3.2 CÓDIGO DE BARRAS POR PRODUCTO (MÓDULO 16, IMPLEMENTADO)
+
+Alcance decidido con el usuario:
+- Un solo código de barras por producto.
+- Lector USB (teclado + Enter), sin cámara.
+- Se usa en el catálogo y al emitir la factura.
+
+Modelo:
+- productos.codigo_barras VARCHAR(64) NULL, único por empresa mediante uq_productos_tenant_codigo_barras (tenant_id, codigo_barras).
+- La migración copia como código de barras los códigos internos que ya sean numéricos de 8, 12, 13 o 14 dígitos.
+- Se normaliza a mayúsculas y sin espacios en los extremos; se aceptan de 4 a 64 caracteres imprimibles sin espacios.
+- Un producto puede no tener código de barras y seguir vendiéndose desde el selector.
+
+Uso:
+- Productos: campo opcional "Código de barras"; el listado lo muestra bajo el código y la búsqueda incluye código, código de barras y descripción.
+- Factura (Nuevo documento): barra "Escanear código de barras" sobre la tabla de ítems.
+  - Enter o el botón Agregar procesan el código.
+  - Si el producto no está en la factura, rellena la primera línea vacía o agrega una nueva con cantidad 1 y el precio del catálogo.
+  - Si ya está, suma 1 a la cantidad.
+  - Si no existe o está inactivo, muestra un aviso y no agrega nada.
+  - El campo conserva el foco para escanear varios productos seguidos.
+- Selector de producto de cada línea convertido en buscador con autocompletado: filtra por código, descripción o código de barras, muestra precio y permite elegir con mouse, flechas + Enter, Escape o Tab. No usa librerías externas; el <select> real queda oculto para conservar el envío del formulario.
+- API de consulta exacta: GET api/productos.php?action=barcode&codigo=... (solo activos, aislado por empresa).
+
+Archivos:
+- database/migrations/017_codigo_barras.sql
+- lib/productos.php (normalización, validación, unicidad y búsqueda)
+- api/productos.php (guardar/editar/eliminar, búsqueda y action=barcode)
+- lib/documentos.php (productos del formulario incluyen codigo_barras)
+- views/productos.php y assets/js/productos.js
+- views/nueva-factura.php y assets/js/nueva-factura.js (escaneo y selector con búsqueda)
+- assets/css/app.css (barra de escaneo y menú del buscador)
+- tests/barcode-smoke.php y tests/barcode-http.php
+
+Pruebas:
+- php tests/barcode-smoke.php → 12 comprobaciones.
+- php tests/barcode-http.php → 12 comprobaciones HTTP.
+- Cubren normalización, formato, duplicados, edición, búsqueda, API exacta, producto inactivo y restricción de la base.
+
+3.3 BÚSQUEDA INTELIGENTE (CLIENTES, PRODUCTOS Y CATÁLOGOS)
+
+- Helper compartido: smartSearchCondition() en lib/helpers.php.
+  - Divide la búsqueda en hasta 6 palabras y exige que cada una aparezca en al menos una columna (AND de grupos OR).
+  - La collation utf8mb4_unicode_ci ya ignora mayúsculas y acentos.
+  - Escapa %, _ y \ para que se busquen como texto literal.
+  - Usa un parámetro nombrado distinto por término y columna.
+- Clientes: busca por documento, documento sin guiones, nombre, nombre comercial, correo, actividad, teléfono y teléfono sin guiones.
+- Productos: busca por código, código de barras y descripción.
+- Catálogos: busca por código, nombre y, en municipios, nombre del departamento.
+- Interfaz: búsqueda en vivo con debounce de 300 ms (FacturaSV.debounce en assets/js/app.js); Enter o Buscar fuerzan la consulta inmediata. Se mantienen los filtros de cada módulo.
+- Pruebas: tests/smart-search-smoke.php (11) y tests/smart-search-http.php (5).
+
+4. PRUEBAS
+
+Total de la suite: 726 comprobaciones correctas.
+Archivos: 30 pruebas (módulos 5 al 16, búsqueda inteligente, QR y ticket).
+
+Pruebas de módulo 15:
+php tests/modulo15-smoke.php
+php tests/modulo15-http.php
+
+Pruebas de módulo 16:
+php tests/barcode-smoke.php
+php tests/barcode-http.php
+
+Pruebas de búsqueda inteligente:
+php tests/smart-search-smoke.php
+php tests/smart-search-http.php
+
+Pruebas de ticket y QR:
+php tests/qr-smoke.php
+php tests/ticket-smoke.php
+php tests/ticket-http.php
+
+Pruebas de módulos:
+php tests/module5-smoke.php
+php tests/module5-http.php
+php tests/module6-pdf.php
+php tests/module6-http.php
+php tests/module7-smoke.php
+php tests/module7-smtp.php
+php tests/module7-http.php
+php tests/module8-smoke.php
+php tests/module8-http.php
+php tests/module9-smoke.php
+php tests/module9-http.php
+php tests/module10-smoke.php
+php tests/module10-http.php
+php tests/module11-smoke.php
+php tests/module11-http.php
+php tests/module12-smoke.php
+php tests/module12-http.php
+php tests/module13-smoke.php
+php tests/module13-http.php
+php tests/module14-smoke.php
+php tests/module14-http.php
+
+Notas:
+- En el entorno confinado de este chat, C:\xampp\tmp no permite escribir sesiones (PHP muestra warnings de session_start) y uploads/logos ni tests/ son escribibles; por eso module6-pdf.php y las escrituras de cookie en tests/ requieren acceso completo. module5-http.php se ajustó para guardar sus cookies en el directorio temporal del sistema.
+- Las pruebas HTTP usan la URL local anterior y el usuario admin.
+- Las pruebas del módulo 15 limpian documentos, series, asientos y filas de auditoría temporales.
+
+5. CAMBIOS DE SEGURIDAD Y UX RECIENTES
+
+- Se eliminó el bloque muerto de registro público en api/auth.php; el endpoint solo responde 403.
+- Se eliminó config/correo.local.php del proyecto. El transporte de correo quedó en SIMULADO por defecto.
+- .gitignore excluye config/correo.local.php, variables .env, respaldos .sql y logs.
+- El login acepta usuario o correo; “Mantener sesión activa” viene desmarcada por seguridad y dura 30 días si se activa.
+- Se rechaza un correo ambiguo que coincida con superadministrador y usuario de empresa.
+- Se agregó protección de display_errors para APP_ENV=production, object-src 'none' al CSP y HSTS condicional en .htaccess.
+- Inventario muestra un aviso de documentos pendientes de conciliar y un botón para reconciliar.
+- Se mejoró contraste del login, foco visible y rejilla del gráfico del dashboard.
+- Se corrigió el pie de los modales con scroll: los formularios que envuelven cabecera, cuerpo y pie (clientes, productos, catálogos, etc.) ahora usan un contenedor flex; antes el cuerpo crecía y ocultaba el botón Guardar.
+- Para volver a enviar correo real: crear config/correo.local.php desde config/correo.local.example.php con credenciales nuevas (está ignorado) o definir MAIL_* en Apache. Rotar credenciales de Mailtrap si se compartieron.
+
+6. MANUAL Y DOCUMENTACIÓN
+
+Manual de usuario actual:
+- docs/manual/manual_usuario_facturasv_v2.pdf (30 páginas; incluye ticket)
+- docs/manual/manual_usuario_facturasv.docx (editable)
+- docs/manual/manual_usuario_facturasv.md (fuente)
+- docs/manual/build_manual.py y docs/manual/img/ (generación y capturas)
+- El PDF anterior docs/manual/manual_usuario_facturasv.pdf está obsoleto (29 páginas, sin ticket) y puede estar bloqueado por la vista previa; no enlazarlo.
+
+Pendiente de documentación:
+- La fuente docs/manual/manual_usuario_facturasv.md ya incluye la sección 9.6 “Modo interno por empresa”, pero el DOCX y el PDF (v2) todavía describen módulos 1 al 14. Falta regenerar ambos con docs/manual/build_manual.py y LibreOffice.
+- El módulo 15 también está documentado en README.md, sección “Modo de facturación por empresa”.
+
+Otros contextos:
+- contexto_ticket.txt (impresión de tickets).
+- contexto_modulo14.txt (cierre del módulo 14).
+- ejemplo.pdf (raíz del proyecto): nota de crédito de referencia usada para rediseñar el PDF; no eliminar.
+
+Manual en README:
+- README.md, sección “Manual de usuario”.
+
+7. LO QUE NO ESTÁ IMPLEMENTADO
+
+- Conexión real con el Ministerio de Hacienda. Todo sigue en SIMULACIÓN.
+- Firma electrónica real y transmisión al MH.
+- Ambiente PRODUCCION; está bloqueado en Configuración y en el modo de facturación.
+- Modo mixto interno + fiscal en una misma empresa.
+- Envío de correo para comprobantes internos (hoy se bloquea a propósito).
+- SSO, passkeys, magic links y recuperación automática de contraseña.
+- Compras, proveedores, costeo de inventario, almacenes múltiples y cierre contable.
+- Impresión directa ESC/POS o impresión silenciosa.
+- Varios códigos de barras por producto, generación/impresión de etiquetas y lectura por cámara. Solo hay un código por producto y lector USB.
+- Escaneo de código de barras en Inventario (hoy solo en Productos y en la factura).
+
+8. DECISIONES Y CRITERIOS DEL MODO INTERNO
+
+- Un comprobante interno no es una factura válida ni sustituye obligaciones tributarias.
+- No debe usarse para ocultar ventas ni para emitir documentos fiscales sin autorización.
+- El modo mixto solo tendría sentido para empresas formales que quieran control interno adicional; hoy no está implementado.
+- Si una empresa pasa de INTERNO a SIMULACION, sus comprobantes internos siguen siendo IN y no se convierten en DTE.
+- El IVA del comprobante interno es informativo y sirve para que contabilidad cuadre; no se declara ni se transmite.
+
+9. SIGUIENTE PASO SUGERIDO
+
+Opciones para la próxima sesión, en orden recomendado:
+1. Regenerar el manual de usuario (DOCX/PDF) con la sección del módulo 15 y capturas nuevas.
+2. Revisar Reportes y Dashboard con una empresa en modo interno: hoy los comprobantes IN suman como ventas PROCESADA; decidir si se quieren columnas o etiquetas separadas.
+3. Definir si el correo de comprobantes internos debe habilitarse como envío manual no fiscal.
+4. Evaluar el modo mixto (series separadas y etiquetas) solo si el usuario lo pide expresamente.
+5. Preparar la integración real con MH para habilitar PRODUCCION (firma, certificado y endpoints).
+
+Recomendación para el próximo chat:
+- Leer primero este archivo, README.md (sección del modo interno) y contexto_ticket.txt.
+- Revisar lib/documentos.php (documentBillingModes, tenantBillingMode, emitDocument, invalidateInternalDocument) y lib/superadmin.php (superadminSetBillingMode).
+- Verificar el estado real con consultas antes de asumir conteos; el usuario puede haber emitido documentos después de este corte.
+
+10. ADVERTENCIAS PARA EL PRÓXIMO CHAT
+
+- No volver a agregar credenciales SMTP al proyecto; usar config/correo.local.php
+  ignorado o variables MAIL_*.
+- No eliminar al usuario contador ni sus datos sin consultar.
+- No asumir que el PDF antiguo es el manual vigente: usar manual_usuario_facturasv_v2.pdf.
+- No afirmar que el sistema factura legalmente: sigue en simulación y sin conexión real
+  con Hacienda.
+- El ticket y el comprobante interno son representaciones adicionales, no DTE oficiales.
+- La base demo puede haber cambiado si el usuario operó después de este corte; verificar
+  con consultas antes de asumir los conteos.
+- No poner una empresa en modo interno sin confirmarlo con el usuario: deja de emitir DTE.
+- PRODUCCION debe seguir bloqueado hasta implementar la integración real.

@@ -1,0 +1,23 @@
+/* Ajustes específicos para papel térmico de 58 mm. */
+.ticket-page.ticket-58 .ticket-company-name {
+    font-size: 12px;
+}
+
+.ticket-page.ticket-58 .ticket-doc-type {
+    font-size: 12px;
+}
+
+.ticket-page.ticket-58 .ticket-logo {
+    margin-bottom: 1.8mm;
+}
+
+.ticket-page.ticket-58 .ticket-separator {
+    margin: 2mm 0;
+}
+
+@media print {
+    @page {
+        margin: 2mm;
+        size: 58mm auto;
+    }
+}

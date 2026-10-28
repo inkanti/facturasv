@@ -1,0 +1,20 @@
+# Secretos locales: nunca versionar credenciales SMTP
+config/correo.local.php
+
+# Variables de entorno y archivos locales
+.env
+.env.*
+
+# Respaldos y logs de trabajo
+*.sql
+!database/schema.sql
+!database/seed.sql
+!database/migrations/*.sql
+*.log
+tests/*.cookie
+*.cookie
+
+# Sistema operativo / editor
+.DS_Store
+Thumbs.db
+desktop.ini
